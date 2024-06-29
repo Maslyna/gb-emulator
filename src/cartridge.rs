@@ -1,74 +1,128 @@
 use phf::phf_map;
 use std::fs::File;
-use std::io::{self, Read};
-use std::result::Result;
+use std::io;
+use std::io::prelude::*;
 
-pub fn load_cart(path: &str) -> Result<RomHeader, std::io::Error> {
-    let file = File::open(path)?;
-    let mut reader = io::BufReader::new(file);
 
-    let mut buffer: [u8; 0x150] = [0; 0x150];
-    reader.read_exact(&mut buffer)?;
-
-    let header = RomHeader {
-        entry: [buffer[0], buffer[1], buffer[2], buffer[3]],
-        logo: {
-            let mut logo = [0u8; 0x30];
-            logo.copy_from_slice(&buffer[0x04..0x34]);
-            logo
-        },
-        title: {
-            let mut title = [0u8; 16];
-            title.copy_from_slice(&buffer[0x34..0x44]);
-            title
-        },
-        manufacture_code: {
-            let mut code = [0u8; 4];
-            code.copy_from_slice(&buffer[0x44..0x48]);
-            code
-        },
-        new_licence_code: {
-            let mut code = [0u8; 2];
-            code.copy_from_slice(&buffer[0x48..0x4A]);
-            code
-        },
-        license_code: buffer[0x4B],
-        dest_code: buffer[0x4C],
-        cgb_flag: buffer[0x4D],
-        sgb_flag: buffer[0x4E],
-        cart_type: buffer[0x4F],
-        rom_size: buffer[0x50],
-        ram_size: buffer[0x51],
-        checksum: buffer[0x52],
-        global_checksum: [buffer[0x53], buffer[0x54]],
+pub fn load_cart(path: String) -> Result<Rom, io::Error> {
+    let mut file: File = match File::open(&path) {
+        Ok(f) => f,
+        Err(err) => return Err(err),
     };
 
-    return Ok(header);
+    let mut buffer: Vec<u8> = Vec::new();
+    
+    file.read_to_end(&mut buffer).unwrap();
+
+    let header = RomHeader::read(buffer);
+
+
+    let rom = Rom {
+        filename: path,
+        rom_data: Box::new([]),
+        rom_header: header,
+    };
+    return Ok(rom);
 }
+
+fn is_checksum_valid(rom_data: &[u8]) -> bool {
+    let mut result: u16 = 0;
+    for i in 0x0134u16..=0x014Cu16 {
+        result = result - (rom_data[(i) as usize]) as u16 - 1;
+    }
+
+    return (result & 0xFF) != 0;
+}
+
+pub struct Rom {
+    pub filename: String,
+    pub rom_data: Box<[u8]>,
+    pub rom_header: RomHeader
+}
+
+impl std::fmt::Display for Rom {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "ROM:")?;
+        writeln!(f, "Filename:")?;
+        writeln!(f, "Size: {}", self.rom_data.len())?;
+        writeln!(f, "Header: [\n{}\n]", self.rom_header)?;
+        Ok(())
+    }
+}
+
 
 #[derive(Debug)]
 pub struct RomHeader {
-    pub entry: [u8; 4],
-    pub logo: [u8; 0x30],
-    pub title: [u8; 16],
-    pub manufacture_code: [u8; 4],
-    pub new_licence_code: [u8; 2],
-    pub license_code: u8,
-    pub dest_code: u8,
-    pub cgb_flag: u8,
-    pub sgb_flag: u8,
-    pub cart_type: u8,
-    pub rom_size: u8,
-    pub ram_size: u8,
-    pub checksum: u8,
-    pub global_checksum: [u8; 2],
+    pub entry: [u8; 4],            // 0x100 - 0x103
+    pub logo: [u8; 0x30],          // 0x104 - 0x133
+    pub title: [u8; 16],           // 0x134 - 0x143
+    pub manufacture_code: [u8; 4], // 0x13F - 0x142
+    pub new_licence_code: [u8; 2], // 0x144 - 0x145
+    pub license_code: u8,          // 0x14A
+    pub dest_code: u8,             // 0x14B
+    pub cgb_flag: u8,              // 0x143
+    pub sgb_flag: u8,              // 0x146
+    pub cart_type: u8,             // 0x147
+    pub rom_size: u8,              // 0x148
+    pub ram_size: u8,              // 0x149
+    pub checksum: u8,              // 0x14D
+    pub global_checksum: [u8; 2],  // 0x14E - 0x14F
+}
+
+impl RomHeader {
+    pub fn read(cartrige: Vec<u8>) -> Self {
+        Self {
+            entry: cartrige[0x100..=0x103].try_into().unwrap(),
+            logo: cartrige[0x104..=0x133].try_into().unwrap(),
+            title: cartrige[0x134..=0x143].try_into().unwrap(),
+            manufacture_code: cartrige[0x13F..=0x142].try_into().unwrap(),
+            new_licence_code: cartrige[0x144..=0x145].try_into().unwrap(),
+            license_code: cartrige[0x14A],
+            dest_code: cartrige[0x14B],
+            cgb_flag: cartrige[0x143],
+            sgb_flag: cartrige[0x146],
+            cart_type: cartrige[0x147],
+            rom_size: cartrige[0x148],
+            ram_size: cartrige[0x149],
+            checksum: cartrige[0x14D],
+            global_checksum: cartrige[0x14E..=0x14F].try_into().unwrap(),
+        }
+    }
+
+    pub fn license_name(&self) -> &'static str {
+        return LIC_CODE.get(&self.license_code).copied().unwrap_or("UNKNOWN");
+    }
+
+    pub fn rom_type_name(&self) -> &'static str {
+        return ROM_TYPE.get(&self.cart_type).copied().unwrap_or("UNKNOWN");
+    }
+}
+
+impl std::fmt::Display for RomHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Entry: {:02X?}", self.entry)?;
+        writeln!(f, "Logo: {:02X?}", self.logo)?;
+        writeln!(f, "Title: {}", u8_slice_to_ascii(&self.title))?;
+        writeln!(f, "Manufacture Code: {:?}", self.manufacture_code)?;
+        writeln!(f, "New License Code: {:02X?}", self.new_licence_code)?;
+        writeln!(f, "License Code: {:02X} - {}", self.license_code, self.license_name())?;
+        writeln!(f, "Destination Code: {:02X}", self.dest_code)?;
+        writeln!(f, "CGB Flag: {:02X}", self.cgb_flag)?;
+        writeln!(f, "SGB Flag: {:02X}", self.sgb_flag)?;
+        writeln!(f, "ROM Type: {:02X} - {}", self.cart_type, self.rom_type_name())?;
+        writeln!(f, "ROM Size: {:02X}", self.rom_size)?;
+        writeln!(f, "RAM Size: {:02X}", self.ram_size)?;
+        writeln!(f, "Checksum: {:02X}", self.checksum)?;
+        writeln!(f, "Global Checksum: {:02X?}", self.global_checksum)?;
+        Ok(())
+    }
 }
 
 pub struct CartContext {
     pub filename: String,
-    pub rom_size: Box<u32>,
-    pub rom_data: *const u8,
-    pub rom_header: *const u8
+    pub rom_size: u32,
+    pub rom_data: Vec<u8>,
+    pub rom_header: Vec<u8>
 }
 
 
@@ -167,69 +221,8 @@ pub const LIC_CODE: phf::Map<u8, &'static str> = phf_map! {
     0xA4u8 => "Konami (Yu-Gi-Oh!)"
 };
 
-pub enum RomType {
-    RomOnly = 0x00,
-    Mbc1 = 0x01,
-    Mbc1Ram = 0x02,
-    Mbc1RamBattery = 0x03,
-    Mbc2 = 0x05,
-    Mbc2Battery = 0x06,
-    RomRam = 0x08,
-    RomRamBattery = 0x09,
-    Mmm01 = 0x0B,
-    Mmm01Ram = 0x0C,
-    Mmm01RamBattery = 0x0D,
-    Mbc3TimerBattery = 0x0F,
-    Mbc3TimerRamBattery = 0x10,
-    Mbc3 = 0x11,
-    Mbc3Ram = 0x12,
-    Mbc3RamBattery = 0x13,
-    Mbc5 = 0x19,
-    Mbc5Ram = 0x1A,
-    Mbc5RamBattery = 0x1B,
-    Mbc5Rumble = 0x1C,
-    Mbc5RumbleRam = 0x1D,
-    Mbc5RumbleRamBattery = 0x1E,
-    Mbc6 = 0x20,
-    Mbc7SensorRumbleRamBattery = 0x22,
-    PocketCamera = 0xFC,
-    BandaiTama5 = 0xFD,
-    HuC3 = 0xFE,
-    HuC1RamBattery = 0xFF,
+fn u8_slice_to_ascii(slice: &[u8]) -> String {
+    let s = slice.iter().map(|byte| { *byte as char }).collect::<String>();
+    return s;
 }
 
-impl RomType {
-    pub fn from_byte(byte: u8) -> RomType {
-        match byte {
-            0x00 => RomType::RomOnly,
-            0x01 => RomType::Mbc1,
-            0x02 => RomType::Mbc1Ram,
-            0x03 => RomType::Mbc1RamBattery,
-            0x05 => RomType::Mbc2,
-            0x06 => RomType::Mbc2Battery,
-            0x08 => RomType::RomRam,
-            0x09 => RomType::RomRamBattery,
-            0x0B => RomType::Mmm01,
-            0x0C => RomType::Mmm01Ram,
-            0x0D => RomType::Mmm01RamBattery,
-            0x0F => RomType::Mbc3TimerBattery,
-            0x10 => RomType::Mbc3TimerRamBattery,
-            0x11 => RomType::Mbc3,
-            0x12 => RomType::Mbc3Ram,
-            0x13 => RomType::Mbc3RamBattery,
-            0x19 => RomType::Mbc5,
-            0x1A => RomType::Mbc5Ram,
-            0x1B => RomType::Mbc5RamBattery,
-            0x1C => RomType::Mbc5Rumble,
-            0x1D => RomType::Mbc5RumbleRam,
-            0x1E => RomType::Mbc5RumbleRamBattery,
-            0x20 => RomType::Mbc6,
-            0x22 => RomType::Mbc7SensorRumbleRamBattery,
-            0xFC => RomType::PocketCamera,
-            0xFD => RomType::BandaiTama5,
-            0xFE => RomType::HuC3,
-            0xFF => RomType::HuC1RamBattery,
-            _ => panic!("Invalid rom type provided: {:#04x}", byte),
-        }
-    }
-}
