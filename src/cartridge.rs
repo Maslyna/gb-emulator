@@ -3,74 +3,103 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 
-
-pub fn load_cart(path: String) -> Result<Rom, io::Error> {
+pub fn load_cart(path: String) -> Result<Rom, CartrigeError> {
     let mut file: File = match File::open(&path) {
         Ok(f) => f,
-        Err(err) => return Err(err),
+        Err(err) => return Err(CartrigeError::IoError(err)),
     };
 
     let mut buffer: Vec<u8> = Vec::new();
-    
     file.read_to_end(&mut buffer).unwrap();
-
-    let header = RomHeader::read(buffer);
-
+    let header = RomHeader::read(&buffer);
 
     let rom = Rom {
         filename: path,
-        rom_data: Box::new([]),
+        rom_data: buffer.into_boxed_slice(),
         rom_header: header,
     };
-    return Ok(rom);
+
+    return match rom.is_checksum_valid() {
+        true => Ok(rom),
+        false => Err(CartrigeError::InvalidFile("Invalid checksum")),
+    };
 }
 
-fn is_checksum_valid(rom_data: &[u8]) -> bool {
-    let mut result: u16 = 0;
-    for i in 0x0134u16..=0x014Cu16 {
-        result = result - (rom_data[(i) as usize]) as u16 - 1;
-    }
+#[derive(Debug)]
+pub enum CartrigeError {
+    InvalidFile(&'static str),
+    IoError(io::Error),
+}
 
-    return (result & 0xFF) != 0;
+impl std::fmt::Display for CartrigeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidFile(msg) => writeln!(f, "InvalidFile({})", msg),
+            Self::IoError(err) => writeln!(f, "IoError({})", err),
+        }
+    }
+}
+
+impl std::error::Error for CartrigeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            CartrigeError::IoError(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 pub struct Rom {
-    pub filename: String,
-    pub rom_data: Box<[u8]>,
-    pub rom_header: RomHeader
+    filename: String,
+    rom_data: Box<[u8]>,
+    rom_header: RomHeader,
+}
+
+impl Rom {
+    fn calculate_cecksum(&self) -> u8 {
+        let mut x: u16 = 0;
+        for i in 0x0134..=0x014C {
+            x = x.wrapping_sub(self.rom_data[i] as u16).wrapping_sub(1);
+        }
+        return x as u8;
+    }
+
+    fn is_checksum_valid(&self) -> bool {
+        return self.calculate_cecksum() == self.rom_header.checksum;
+    }
 }
 
 impl std::fmt::Display for Rom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "ROM:")?;
         writeln!(f, "Filename:")?;
-        writeln!(f, "Size: {}", self.rom_data.len())?;
-        writeln!(f, "Header: [\n{}\n]", self.rom_header)?;
+        writeln!(f, "Size: {} KB", 32 << self.rom_header.rom_size)?;
+        writeln!(f, "Checksum: {:02X}", self.calculate_cecksum())?;
+        writeln!(f, "Header: [\n{}]", self.rom_header)?;
         Ok(())
     }
 }
 
-
 #[derive(Debug)]
 pub struct RomHeader {
-    pub entry: [u8; 4],            // 0x100 - 0x103
-    pub logo: [u8; 0x30],          // 0x104 - 0x133
-    pub title: [u8; 16],           // 0x134 - 0x143
-    pub manufacture_code: [u8; 4], // 0x13F - 0x142
-    pub new_licence_code: [u8; 2], // 0x144 - 0x145
-    pub license_code: u8,          // 0x14A
-    pub dest_code: u8,             // 0x14B
-    pub cgb_flag: u8,              // 0x143
-    pub sgb_flag: u8,              // 0x146
-    pub cart_type: u8,             // 0x147
-    pub rom_size: u8,              // 0x148
-    pub ram_size: u8,              // 0x149
-    pub checksum: u8,              // 0x14D
-    pub global_checksum: [u8; 2],  // 0x14E - 0x14F
+    entry: [u8; 4],            // 0x100 - 0x103
+    logo: [u8; 0x30],          // 0x104 - 0x133
+    title: [u8; 16],           // 0x134 - 0x143
+    manufacture_code: [u8; 4], // 0x13F - 0x142
+    new_licence_code: [u8; 2], // 0x144 - 0x145
+    license_code: u8,          // 0x14A
+    dest_code: u8,             // 0x14B
+    cgb_flag: u8,              // 0x143
+    sgb_flag: u8,              // 0x146
+    cart_type: u8,             // 0x147
+    rom_size: u8,              // 0x148
+    ram_size: u8,              // 0x149
+    checksum: u8,              // 0x14D
+    global_checksum: [u8; 2],  // 0x14E - 0x14F
 }
 
 impl RomHeader {
-    pub fn read(cartrige: Vec<u8>) -> Self {
+    pub fn read(cartrige: &[u8]) -> Self {
         Self {
             entry: cartrige[0x100..=0x103].try_into().unwrap(),
             logo: cartrige[0x104..=0x133].try_into().unwrap(),
@@ -90,7 +119,10 @@ impl RomHeader {
     }
 
     pub fn license_name(&self) -> &'static str {
-        return LIC_CODE.get(&self.license_code).copied().unwrap_or("UNKNOWN");
+        return LIC_CODE
+            .get(&self.license_code)
+            .copied()
+            .unwrap_or("UNKNOWN");
     }
 
     pub fn rom_type_name(&self) -> &'static str {
@@ -100,20 +132,30 @@ impl RomHeader {
 
 impl std::fmt::Display for RomHeader {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Entry: {:02X?}", self.entry)?;
-        writeln!(f, "Logo: {:02X?}", self.logo)?;
-        writeln!(f, "Title: {}", u8_slice_to_ascii(&self.title))?;
-        writeln!(f, "Manufacture Code: {:?}", self.manufacture_code)?;
-        writeln!(f, "New License Code: {:02X?}", self.new_licence_code)?;
-        writeln!(f, "License Code: {:02X} - {}", self.license_code, self.license_name())?;
-        writeln!(f, "Destination Code: {:02X}", self.dest_code)?;
-        writeln!(f, "CGB Flag: {:02X}", self.cgb_flag)?;
-        writeln!(f, "SGB Flag: {:02X}", self.sgb_flag)?;
-        writeln!(f, "ROM Type: {:02X} - {}", self.cart_type, self.rom_type_name())?;
-        writeln!(f, "ROM Size: {:02X}", self.rom_size)?;
-        writeln!(f, "RAM Size: {:02X}", self.ram_size)?;
-        writeln!(f, "Checksum: {:02X}", self.checksum)?;
-        writeln!(f, "Global Checksum: {:02X?}", self.global_checksum)?;
+        writeln!(f, "\tEntry: {:02X?}", self.entry)?;
+        writeln!(f, "\tLogo: {:02X?}", self.logo)?;
+        writeln!(f, "\tTitle: {}", u8_slice_to_ascii(&self.title))?;
+        writeln!(f, "\tManufacture Code: {:?}", self.manufacture_code)?;
+        writeln!(f, "\tNew License Code: {:02X?}", self.new_licence_code)?;
+        writeln!(
+            f,
+            "\tLicense Code: {:02X} - {}",
+            self.license_code,
+            self.license_name()
+        )?;
+        writeln!(f, "\tDestination Code: {:02X}", self.dest_code)?;
+        writeln!(f, "\tCGB Flag: {:02X}", self.cgb_flag)?;
+        writeln!(f, "\tSGB Flag: {:02X}", self.sgb_flag)?;
+        writeln!(
+            f,
+            "\tROM Type: {:02X} - {}",
+            self.cart_type,
+            self.rom_type_name()
+        )?;
+        writeln!(f, "\tROM Size: {:02X}", self.rom_size)?;
+        writeln!(f, "\tRAM Size: {:02X}", self.ram_size)?;
+        writeln!(f, "\tChecksum: {:02X}", self.checksum)?;
+        writeln!(f, "\tGlobal Checksum: {:02X?}", self.global_checksum)?;
         Ok(())
     }
 }
@@ -122,9 +164,8 @@ pub struct CartContext {
     pub filename: String,
     pub rom_size: u32,
     pub rom_data: Vec<u8>,
-    pub rom_header: Vec<u8>
+    pub rom_header: Vec<u8>,
 }
-
 
 pub const ROM_TYPE: phf::Map<u8, &'static str> = phf_map! {
     0x00u8 => "ROM ONLY",
@@ -222,7 +263,6 @@ pub const LIC_CODE: phf::Map<u8, &'static str> = phf_map! {
 };
 
 fn u8_slice_to_ascii(slice: &[u8]) -> String {
-    let s = slice.iter().map(|byte| { *byte as char }).collect::<String>();
+    let s = slice.iter().map(|byte| *byte as char).collect::<String>();
     return s;
 }
-
