@@ -1,17 +1,21 @@
-#[allow(clippy::needless_return)]
-mod cartridge;
+#![allow(clippy::needless_return)]
 
-use cartridge::load_cart;
+mod macros;
+mod cartridge;
+mod cpu;
+mod bus;
+
+use cartridge::rom::Rom;
 use std::env;
 use std::error::Error;
 
-#[allow(clippy::needless_return)]
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
 
     let path: String = args.nth(1).expect("<PATH> - path to the file");
-
-    let rom = match load_cart(path) {
+    println!("PATH: {}", path);
+    
+    let rom = match Rom::load(path) {
         Ok(r) => r,
         Err(err) => return Err(Box::new(err)),
     };

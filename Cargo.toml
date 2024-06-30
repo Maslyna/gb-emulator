@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 phf = { version = "0.11", features = ["macros"] }
 phf_codegen = "0.11"
+lazy_static = "1.5.0"
