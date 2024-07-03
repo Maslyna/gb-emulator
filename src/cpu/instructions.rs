@@ -13,11 +13,13 @@ pub struct Instruction {
 }
 
 impl Instruction {
-
     const INSTRUCTIONS: [Instruction; 0x100] = Instruction::init_instructions();
 
     pub fn from_op_code(code: u8) -> Instruction {
-        return Instruction::INSTRUCTIONS[code as usize];
+        return Instruction::INSTRUCTIONS
+            .get(code as usize)
+            .cloned()
+            .unwrap_or_else(|| panic!("Unsupported instruction: {:02X}", code));
     }
 
     const fn init_instructions() -> [Instruction; 0x100] {
@@ -74,12 +76,10 @@ impl Instruction {
             condition: ConditionType::None,
             param: 0,
         };
-        
+
         return instructions;
     }
-    
 }
-
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]

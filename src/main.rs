@@ -13,7 +13,8 @@ use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
-
+    let a: Vec<String> = env::args().collect();
+    println!("args = {:?}", a);
     let path: String = args.nth(1).expect("<PATH> - path to the file");
     println!("PATH: {}", path);
     

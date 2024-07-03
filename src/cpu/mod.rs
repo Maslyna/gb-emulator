@@ -38,11 +38,13 @@ impl Cpu {
             self.execute();
         }
 
-        return false;
+        return true;
     }
 
     fn execute(&self) {
+        println!("Executing instruction: {:02X}", self.cur_opcode);
         println!("Not executing yet...");
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 
     fn fetch_instruction(&mut self, bus: &mut Bus) {
