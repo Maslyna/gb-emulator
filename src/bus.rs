@@ -14,7 +14,7 @@
 
 use crate::cartridge::rom::Rom;
 
-struct Bus {
+pub struct Bus {
     rom: Rom
 }
 
