@@ -19,6 +19,12 @@ pub struct Bus {
 }
 
 impl Bus {
+    pub fn new(rom: Rom) -> Self {
+        Self {
+            rom
+        }
+    }
+
 
     pub fn read(&self, adress: u16) -> u8 {
         return self.rom.read(adress);

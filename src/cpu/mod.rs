@@ -3,9 +3,7 @@ mod instructions;
 use instructions::*;
 use super::bus::Bus;
 
-pub struct Cpu<'a> {
-    bus: &'a Bus,
-
+pub struct Cpu {
     regs: Registers,
 
     // current fetch
@@ -19,10 +17,9 @@ pub struct Cpu<'a> {
     stepping: bool,
 }
 
-impl<'a> Cpu<'a> {
-    pub fn new(bus: &'a Bus) -> Self {
+impl Cpu {
+    pub fn new() -> Self {
         Self {
-            bus,
             regs: Registers::new(),
             fetched_data: 0,
             mem_dest: 0,
@@ -34,10 +31,10 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    pub fn step(&mut self) -> bool {
+    pub fn step(&mut self, bus: &mut Bus) -> bool {
         if !self.halted {
-            self.fetch_instruction();
-            self.fetch_data();
+            self.fetch_instruction(bus);
+            self.fetch_data(bus);
             self.execute();
         }
 
@@ -48,13 +45,13 @@ impl<'a> Cpu<'a> {
         println!("Not executing yet...");
     }
 
-    fn fetch_instruction(&mut self) {
-        self.cur_opcode = self.bus.read(self.regs.pc);
+    fn fetch_instruction(&mut self, bus: &mut Bus) {
+        self.cur_opcode = bus.read(self.regs.pc);
         self.cur_inst = Instruction::from_op_code(self.cur_opcode);
         self.regs.pc += 1;
     }
 
-    fn fetch_data(&mut self) {
+    fn fetch_data(&mut self, bus: &mut Bus) {
         self.mem_dest = 0;
         self.dest_is_mem = false;
 
@@ -64,14 +61,14 @@ impl<'a> Cpu<'a> {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_1);
             },
             AdressMode::R_D8 => {
-                self.fetched_data = self.bus.read(self.regs.pc) as u16;
+                self.fetched_data = bus.read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             },
             AdressMode::D16 => {
-                let lo = self.bus.read(self.regs.pc) as u16;
+                let lo = bus.read(self.regs.pc) as u16;
                 self.emu_cycles(1);
-                let hi = self.bus.read(self.regs.pc + 1) as u16;
+                let hi = bus.read(self.regs.pc + 1) as u16;
                 self.emu_cycles(1);
                 self.fetched_data = lo | (hi << 8);
                 self.regs.pc += 2;

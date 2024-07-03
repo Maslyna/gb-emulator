@@ -4,8 +4,10 @@ mod macros;
 mod cartridge;
 mod cpu;
 mod bus;
+mod emu;
 
 use cartridge::rom::Rom;
+use emu::{Emu, EmuError};
 use std::env;
 use std::error::Error;
 
@@ -19,7 +21,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         Ok(r) => r,
         Err(err) => return Err(Box::new(err)),
     };
-    print!("{}", rom);
+    println!("{}", rom);
 
-    return Ok(());
+    let mut emu = Emu::new(rom);
+    
+    
+    return match emu.run() {
+        Ok(_) => Ok(()),
+        Err(err) => Err(Box::new(err))
+    };
 }

@@ -13,7 +13,6 @@ pub enum CartrigeError {
 
 #[allow(clippy::upper_case_acronyms)]
 pub struct Rom {
-    filename: String,
     rom_data: Box<[u8]>,
     rom_header: Header,
 }
@@ -47,7 +46,6 @@ impl Rom {
         let header = Header::new(&buffer);
 
         let rom = Rom {
-            filename: path,
             rom_data: buffer.into_boxed_slice(),
             rom_header: header,
         };
@@ -123,7 +121,6 @@ impl Header {
 impl std::fmt::Display for Rom {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "ROM:")?;
-        writeln!(f, "Filename: {}", self.filename)?;
         writeln!(f, "Size: {} KB", 32 << self.rom_header.rom_size)?;
         writeln!(f, "Checksum: {:02X}", self.calculate_cecksum())?;
         writeln!(f, "Header: [\n{}]", self.rom_header)?;
