@@ -16,68 +16,67 @@ impl Instruction {
     const INSTRUCTIONS: [Instruction; 0x100] = Instruction::init_instructions();
 
     pub fn from_op_code(code: u8) -> Instruction {
-        return Instruction::INSTRUCTIONS
-            .get(code as usize)
-            .cloned()
-            .unwrap_or_else(|| panic!("Unsupported instruction: {:02X}", code));
+        return Instruction::INSTRUCTIONS[code as usize];
     }
 
     const fn init_instructions() -> [Instruction; 0x100] {
-        let mut instructions: [Instruction; 0x100] = [Instruction {
+        let mut instructions: [Instruction; 0x100] = [Instruction::default(); 0x100];
+
+        instructions[0x00] = Instruction {
+            in_type: InstructionType::Nop,
+            ..Instruction::default()
+        };
+
+        instructions[0x05] = Instruction {
+            in_type: InstructionType::Dec,
+            mode: AdressMode::R,
+            reg_1: RegisterType::B,
+            ..Instruction::default()
+        };
+
+        instructions[0x0E] = Instruction {
+            in_type: InstructionType::Ld,
+            mode: AdressMode::R_D8,
+            reg_1: RegisterType::C,
+            ..Instruction::default()
+        };
+
+        instructions[0xAF] = Instruction {
+            in_type: InstructionType::Xor,
+            mode: AdressMode::R,
+            reg_1: RegisterType::A,
+            ..Instruction::default()
+        };
+
+        instructions[0xC3] = Instruction {
+            in_type: InstructionType::Jp,
+            mode: AdressMode::D16,
+            ..Instruction::default()
+        };
+
+        instructions[0xF3] = Instruction {
+            in_type: InstructionType::Di,
+            ..Instruction::default()
+        };
+        
+        return instructions;
+    }
+
+    const fn default() -> Self {
+        Self {
             in_type: InstructionType::None,
             mode: AdressMode::Imp,
             reg_1: RegisterType::None,
             reg_2: RegisterType::None,
             condition: ConditionType::None,
             param: 0,
-        }; 0x100];
+        }
+    }
+}
 
-        instructions[0x00] = Instruction {
-            in_type: InstructionType::NOP,
-            mode: AdressMode::Imp,
-            reg_1: RegisterType::None,
-            reg_2: RegisterType::None,
-            condition: ConditionType::None,
-            param: 0,
-        };
-
-        instructions[0x05] = Instruction {
-            in_type: InstructionType::DEC,
-            mode: AdressMode::R,
-            reg_1: RegisterType::B,
-            reg_2: RegisterType::None,
-            condition: ConditionType::None,
-            param: 0,
-        };
-
-        instructions[0x0E] = Instruction {
-            in_type: InstructionType::LD,
-            mode: AdressMode::R_D8,
-            reg_1: RegisterType::C,
-            reg_2: RegisterType::None,
-            condition: ConditionType::None,
-            param: 0,
-        };
-
-        instructions[0xAF] = Instruction {
-            in_type: InstructionType::XOR,
-            mode: AdressMode::R,
-            reg_1: RegisterType::A,
-            reg_2: RegisterType::None,
-            condition: ConditionType::None,
-            param: 0,
-        };
-
-        instructions[0xC3] = Instruction {
-            in_type: InstructionType::JP,
-            mode: AdressMode::D16,
-            reg_1: RegisterType::None,
-            reg_2: RegisterType::None,
-            condition: ConditionType::None,
-            param: 0,
-        };
-
-        return instructions;
+impl Default for Instruction {
+    fn default() -> Self {
+        Instruction::default()
     }
 }
 
@@ -127,58 +126,58 @@ pub enum RegisterType {
     PC,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum InstructionType {
     None,
-    NOP,
-    LD,
-    INC,
-    DEC,
-    RLCA,
-    ADD,
-    RRCA,
-    STOP,
-    RLA,
-    JR,
-    RRA,
-    DAA,
-    CPL,
-    SCF,
-    CCF,
-    HALT,
-    ADC,
-    SUB,
-    SBC,
-    AND,
-    XOR,
-    OR,
-    CP,
-    POP,
-    JP,
-    PUSH,
-    RET,
-    CB,
-    CALL,
-    RETI,
-    LDH,
-    JPHL,
-    DI,
-    EI,
-    RST,
-    ERR,
+    Nop,
+    Ld,
+    Inc,
+    Dec,
+    Rlca,
+    Add,
+    Rrca,
+    Stop,
+    Rla,
+    Jr,
+    Rra,
+    Daa,
+    Cpl,
+    Scf,
+    Ccf,
+    Halt,
+    Adc,
+    Sub,
+    Sbc,
+    And,
+    Xor,
+    Or,
+    Cp,
+    Pop,
+    Jp,
+    Push,
+    Ret,
+    Cb,
+    Call,
+    Reti,
+    Ldh,
+    Jphl,
+    Di,
+    Ei,
+    Rst,
+    Err,
     //CB instructions...
-    RLC,
-    RRC,
+    Rlc,
+    Rrc,
     RL,
-    RR,
-    SLA,
-    SRA,
-    SWAP,
-    SRL,
-    BIT,
-    RES,
-    SET,
+    Rr,
+    Sla,
+    Sra,
+    Swap,
+    Srl,
+    Bit,
+    Res,
+    Set,
 }
 
 #[derive(Debug, Copy, Clone)]

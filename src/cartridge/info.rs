@@ -113,6 +113,7 @@ pub enum License {
     PackInSoft,
 }
 
+
 impl RomType {
     pub fn from_byte(byte: u8) -> RomType {
         match byte {
@@ -210,5 +211,5 @@ pub const LIC_CODE: phf::Map<u8, &'static str> = phf_map! {
     0x96u8 => "Yonezawa/s'pal",
     0x97u8 => "Kaneko",
     0x99u8 => "Pack in soft",
-    0xA4u8 => "Konami (Yu-Gi-Oh!)"
+    0xA4u8 => "Konami (Yu-Gi-Oh!)",
 };

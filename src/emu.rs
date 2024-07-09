@@ -17,7 +17,7 @@ impl Emu {
             paused: false,
             running: false,
             ticks: 0,
-            cpu: Cpu::new(),
+            cpu: Cpu::with_pc(0x100),
             bus: Bus::new(rom),
         }
     }

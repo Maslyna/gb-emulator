@@ -30,7 +30,7 @@ impl Bus {
         return self.rom.read(adress);
     }
 
-    pub fn write(&self, adress: u16, value: u8) {
+    pub fn write(&mut self, adress: u16, value: u8) {
         self.rom.write(adress, value);
     }
 }

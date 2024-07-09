@@ -11,7 +11,6 @@ pub enum CartrigeError {
     IoError(io::Error),
 }
 
-#[allow(clippy::upper_case_acronyms)]
 pub struct Rom {
     rom_data: Box<[u8]>,
     rom_header: Header,
@@ -36,7 +35,7 @@ pub struct Header {
 
 impl Rom {
     pub fn load(path: String) -> Result<Rom, CartrigeError> {
-        let mut file: File = match File::open(&path) {
+        let mut file: File = match File::open(path) {
             Ok(f) => f,
             Err(err) => return Err(CartrigeError::IoError(err)),
         };
@@ -60,7 +59,7 @@ impl Rom {
         return self.rom_data[adress as usize];
     }
 
-    pub fn write(&self, _adress: u16, _value: u8) {
+    pub fn write(&mut self, _adress: u16, _value: u8) {
         todo!("for now ROM only");
     }
 
