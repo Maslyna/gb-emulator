@@ -26,11 +26,11 @@ impl Bus {
     }
 
 
-    pub fn read(&self, adress: u16) -> u8 {
-        return self.rom.read(adress);
+    pub fn read(&self, address: u16) -> u8 {
+        return self.rom.read(address);
     }
 
-    pub fn write(&mut self, adress: u16, value: u8) {
-        self.rom.write(adress, value);
+    pub fn write(&mut self, address: u16, value: u8) {
+        self.rom.write(address, value);
     }
 }

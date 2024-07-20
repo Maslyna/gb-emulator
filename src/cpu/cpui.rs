@@ -31,7 +31,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             regs: Registers::new(),
             fetched_data: 0,
@@ -45,7 +45,7 @@ impl Cpu {
         }
     }
 
-    pub fn with_pc(pc: u16) -> Self {
+    pub const fn with_pc(pc: u16) -> Self {
         let mut cpu = Cpu::new();
         cpu.regs.pc = pc;
 
@@ -72,56 +72,56 @@ impl Cpu {
             self.regs.b,
             self.regs.c
         );
-        use InstructionType::*;
+        use InstructionType as IT;
         match self.cur_inst.in_type {
-            None => panic!("INVALID INSTRUCTION!"),
-            Nop => self.nop(),
-            Ld => self.ld(),
-            Inc => todo!(),
-            Dec => todo!(),
-            Rlca => todo!(),
-            Add => todo!(),
-            Rrca => todo!(),
-            Stop => todo!(),
-            Rla => todo!(),
-            Jr => todo!(),
-            Rra => todo!(),
-            Daa => todo!(),
-            Cpl => todo!(),
-            Scf => todo!(),
-            Ccf => todo!(),
-            Halt => todo!(),
-            Adc => todo!(),
-            Sub => todo!(),
-            Sbc => todo!(),
-            And => todo!(),
-            Xor => todo!(),
-            Or => todo!(),
-            Cp => todo!(),
-            Pop => todo!(),
-            Jp => self.jp(),
-            Push => todo!(),
-            Ret => todo!(),
-            Cb => todo!(),
-            Call => todo!(),
-            Reti => todo!(),
-            Ldh => todo!(),
-            Jphl => todo!(),
-            Di => self.di(),
-            Ei => todo!(),
-            Rst => todo!(),
-            Err => todo!(),
-            Rlc => todo!(),
-            Rrc => todo!(),
-            RL => todo!(),
-            Rr => todo!(),
-            Sla => todo!(),
-            Sra => todo!(),
-            Swap => todo!(),
-            Srl => todo!(),
-            Bit => todo!(),
-            Res => todo!(),
-            Set => todo!(),
+            IT::None => panic!("INVALID INSTRUCTION"),
+            IT::Nop => self.nop(),
+            IT::Ld => self.ld(),
+            IT::Inc => todo!(),
+            IT::Dec => todo!(),
+            IT::Rlca => todo!(),
+            IT::Add => todo!(),
+            IT::Rrca => todo!(),
+            IT::Stop => todo!(),
+            IT::Rla => todo!(),
+            IT::Jr => todo!(),
+            IT::Rra => todo!(),
+            IT::Daa => todo!(),
+            IT::Cpl => todo!(),
+            IT::Scf => todo!(),
+            IT::Ccf => todo!(),
+            IT::Halt => todo!(),
+            IT::Adc => todo!(),
+            IT::Sub => todo!(),
+            IT::Sbc => todo!(),
+            IT::And => todo!(),
+            IT::Xor => todo!(),
+            IT::Or => todo!(),
+            IT::Cp => todo!(),
+            IT::Pop => todo!(),
+            IT::Jp => self.jp(),
+            IT::Push => todo!(),
+            IT::Ret => todo!(),
+            IT::Cb => todo!(),
+            IT::Call => todo!(),
+            IT::Reti => todo!(),
+            IT::Ldh => todo!(),
+            IT::Jphl => todo!(),
+            IT::Di => self.di(),
+            IT::Ei => todo!(),
+            IT::Rst => todo!(),
+            IT::Err => todo!(),
+            IT::Rlc => todo!(),
+            IT::Rrc => todo!(),
+            IT::RL => todo!(),
+            IT::Rr => todo!(),
+            IT::Sla => todo!(),
+            IT::Sra => todo!(),
+            IT::Swap => todo!(),
+            IT::Srl => todo!(),
+            IT::Bit => todo!(),
+            IT::Res => todo!(),
+            IT::Set => todo!(),
         }
     }
 
@@ -135,46 +135,68 @@ impl Cpu {
         self.mem_dest = 0;
         self.dest_is_mem = false;
 
+        use AdressMode as AM;
+        use RegisterType as RT;
         match self.cur_inst.mode {
-            AdressMode::Imp => {}
-            AdressMode::R => {
+            AM::Imp => {}
+            AM::R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_1);
             }
-            AdressMode::R_D8 => {
+            AM::R_D8 => {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             }
-            AdressMode::D16 => {
-                let lo = bus.read(self.regs.pc) as u16;
+            AM::D16 | AM::R_D16 => {
+                let lo = bus.read(self.regs.pc);
                 self.emu_cycles(1);
-                let hi = bus.read(self.regs.pc + 1) as u16;
+                let hi = bus.read(self.regs.pc + 1);
                 self.emu_cycles(1);
-                self.fetched_data = lo | (hi << 8);
+                
+                self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
+            AM::MR_R => {
+                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+                self.dest_is_mem = false;
+
+                if self.cur_inst.reg_1 == RT::C {
+                    self.mem_dest |= 0xFF00;
+                }
+            }
+            AM::R_MR => {
+                let mut address = self.read_reg(self.cur_inst.reg_2);
+
+                if self.cur_inst.reg_1 == RT::C {
+                    address |= 0xFF00;
+                }
+
+                self.fetched_data = bus.read(address) as u16;
+                self.emu_cycles(1);
+            }
             _ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
-        }
+        };
     }
 
     fn read_reg(&self, reg_type: RegisterType) -> u16 {
-        use RegisterType::*;
+        use RegisterType as RT;
         return match reg_type {
-            None => 0,
-            A => self.regs.a as u16,
-            F => self.regs.f as u16,
-            B => self.regs.b as u16,
-            C => self.regs.c as u16,
-            D => self.regs.d as u16,
-            E => self.regs.e as u16,
-            H => self.regs.h as u16,
-            L => self.regs.l as u16,
-            AF => reverse_u16!(self.regs.a as u16),
-            BC => reverse_u16!(self.regs.b as u16),
-            DE => reverse_u16!(self.regs.d as u16),
-            HL => reverse_u16!(self.regs.h as u16),
-            SP => self.regs.pc,
-            PC => self.regs.sp,
+            RT::None => 0,
+            RT::A => self.regs.a as u16,
+            RT::F => self.regs.f as u16,
+            RT::B => self.regs.b as u16,
+            RT::C => self.regs.c as u16,
+            RT::D => self.regs.d as u16,
+            RT::E => self.regs.e as u16,
+            RT::H => self.regs.h as u16,
+            RT::L => self.regs.l as u16,
+            RT::AF => reverse_u16!(self.regs.a as u16),
+            RT::BC => reverse_u16!(self.regs.b as u16),
+            RT::DE => reverse_u16!(self.regs.d as u16),
+            RT::HL => reverse_u16!(self.regs.h as u16),
+            RT::SP => self.regs.pc,
+            RT::PC => self.regs.sp,
         };
     }
 
@@ -184,16 +206,16 @@ impl Cpu {
 
     fn set_flags(&mut self, z: i8, n: i8, h: i8, c: i8) {
         if z >= 0 {
-            bit_set!(self.regs.f, 7, z != 0);
+            set_bit!(self.regs.f, 7, z != 0);
         }
         if n >= 0 {
-            bit_set!(self.regs.f, 6, n != 0);
+            set_bit!(self.regs.f, 6, n != 0);
         }
         if h >= 0 {
-            bit_set!(self.regs.f, 5, h != 0);
+            set_bit!(self.regs.f, 5, h != 0);
         }
         if c >= 0 {
-            bit_set!(self.regs.f, 4, c != 0);
+            set_bit!(self.regs.f, 4, c != 0);
         }
     }
 
@@ -245,7 +267,7 @@ impl Cpu {
 }
 
 impl Registers {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             a: 0,
             f: 0,
