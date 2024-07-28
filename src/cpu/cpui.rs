@@ -1,6 +1,7 @@
 use super::instructions::*;
 use crate::bus::Bus;
 
+#[derive(Debug, Default)]
 pub struct Registers {
     a: u8,
     f: u8,
@@ -14,6 +15,7 @@ pub struct Registers {
     sp: u16,
 }
 
+#[derive(Debug)]
 pub struct Cpu {
     pub regs: Registers,
 
@@ -74,7 +76,7 @@ impl Cpu {
         );
         use InstructionType as IT;
         match self.cur_inst.in_type {
-            IT::None => panic!("INVALID INSTRUCTION"),
+            IT::None => panic!("INVALID INSTRUCTION: {:?}", self.cur_inst),
             IT::Nop => self.nop(),
             IT::Ld => self.ld(),
             IT::Inc => todo!(),
@@ -95,7 +97,7 @@ impl Cpu {
             IT::Sub => todo!(),
             IT::Sbc => todo!(),
             IT::And => todo!(),
-            IT::Xor => todo!(),
+            IT::Xor => self.xor(),
             IT::Or => todo!(),
             IT::Cp => todo!(),
             IT::Pop => todo!(),
@@ -135,7 +137,7 @@ impl Cpu {
         self.mem_dest = 0;
         self.dest_is_mem = false;
 
-        use AdressMode as AM;
+        use AddressMode as AM;
         use RegisterType as RT;
         match self.cur_inst.mode {
             AM::Imp => {}
@@ -147,6 +149,16 @@ impl Cpu {
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             }
+            AM::A16_R | AM::D16_R => {
+                let lo = bus.read(self.regs.pc);
+                self.emu_cycles(1);
+                let hi = bus.read(self.regs.pc + 1);
+                self.emu_cycles(1);
+                
+                self.mem_dest = combine_bytes!(lo, hi);
+                self.dest_is_mem = true;
+                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+            }
             AM::D16 | AM::R_D16 => {
                 let lo = bus.read(self.regs.pc);
                 self.emu_cycles(1);
@@ -155,6 +167,32 @@ impl Cpu {
                 
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
+            }
+            AM::MR_D8 => {
+                self.fetched_data = bus.read(self.regs.pc) as u16;
+                self.emu_cycles(1);
+                self.regs.pc += 1;
+                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+                self.dest_is_mem = true;
+            }
+            AM::MR => {
+                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+                self.dest_is_mem = true;
+                let dest = self.read_reg(self.cur_inst.reg_1);
+                self.fetched_data = bus.read(dest) as u16;
+                self.emu_cycles(1);
+            }
+            AM::R_A16 => {
+                let lo = bus.read(self.regs.pc);
+                self.emu_cycles(1);
+                let hi = bus.read(self.regs.pc + 1);
+                self.emu_cycles(1);
+
+                let addr = combine_bytes!(lo, hi);
+
+                self.regs.pc += 2;
+                self.fetched_data = bus.read(addr) as u16;
+                self.emu_cycles(1);
             }
             AM::MR_R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
@@ -174,6 +212,11 @@ impl Cpu {
 
                 self.fetched_data = bus.read(address) as u16;
                 self.emu_cycles(1);
+            }
+            AM::HLI_R => {
+                self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
+                self.emu_cycles(1);
+                todo!()
             }
             _ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
@@ -282,3 +325,4 @@ impl Registers {
         }
     }
 }
+

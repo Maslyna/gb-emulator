@@ -5,7 +5,7 @@
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instruction {
     pub in_type: InstructionType,
-    pub mode: AdressMode,
+    pub mode: AddressMode,
     pub reg_1: RegisterType,
     pub reg_2: RegisterType,
     pub condition: ConditionType,
@@ -14,7 +14,7 @@ pub struct Instruction {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
-pub enum AdressMode {
+pub enum AddressMode {
     Imp,
     R_D16,
     R_R,
@@ -139,28 +139,28 @@ impl Instruction {
 
         instructions[0x05] = Instruction {
             in_type: InstructionType::Dec,
-            mode: AdressMode::R,
+            mode: AddressMode::R,
             reg_1: RegisterType::B,
             ..Instruction::default()
         };
 
         instructions[0x0E] = Instruction {
             in_type: InstructionType::Ld,
-            mode: AdressMode::R_D8,
+            mode: AddressMode::R_D8,
             reg_1: RegisterType::C,
             ..Instruction::default()
         };
 
         instructions[0xAF] = Instruction {
             in_type: InstructionType::Xor,
-            mode: AdressMode::R,
+            mode: AddressMode::R,
             reg_1: RegisterType::A,
             ..Instruction::default()
         };
 
         instructions[0xC3] = Instruction {
             in_type: InstructionType::Jp,
-            mode: AdressMode::D16,
+            mode: AddressMode::D16,
             ..Instruction::default()
         };
 
@@ -175,7 +175,7 @@ impl Instruction {
     const fn default() -> Self {
         Self {
             in_type: InstructionType::None,
-            mode: AdressMode::Imp,
+            mode: AddressMode::Imp,
             reg_1: RegisterType::None,
             reg_2: RegisterType::None,
             condition: ConditionType::None,
