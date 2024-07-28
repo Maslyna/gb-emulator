@@ -125,54 +125,7 @@ pub enum ConditionType {
 impl Instruction {
     const INSTRUCTIONS: [Instruction; 0x100] = Instruction::init_instructions();
 
-    pub const fn from_op_code(code: u8) -> Instruction {
-        return Instruction::INSTRUCTIONS[code as usize];
-    }
-
-    const fn init_instructions() -> [Instruction; 0x100] {
-        let mut instructions: [Instruction; 0x100] = [Instruction::default(); 0x100];
-
-        instructions[0x00] = Instruction {
-            in_type: InstructionType::Nop,
-            ..Instruction::default()
-        };
-
-        instructions[0x05] = Instruction {
-            in_type: InstructionType::Dec,
-            mode: AddressMode::R,
-            reg_1: RegisterType::B,
-            ..Instruction::default()
-        };
-
-        instructions[0x0E] = Instruction {
-            in_type: InstructionType::Ld,
-            mode: AddressMode::R_D8,
-            reg_1: RegisterType::C,
-            ..Instruction::default()
-        };
-
-        instructions[0xAF] = Instruction {
-            in_type: InstructionType::Xor,
-            mode: AddressMode::R,
-            reg_1: RegisterType::A,
-            ..Instruction::default()
-        };
-
-        instructions[0xC3] = Instruction {
-            in_type: InstructionType::Jp,
-            mode: AddressMode::D16,
-            ..Instruction::default()
-        };
-
-        instructions[0xF3] = Instruction {
-            in_type: InstructionType::Di,
-            ..Instruction::default()
-        };
-        
-        return instructions;
-    }
-
-    const fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             in_type: InstructionType::None,
             mode: AddressMode::Imp,
@@ -181,6 +134,66 @@ impl Instruction {
             condition: ConditionType::None,
             param: 0,
         }
+    }
+
+    const fn init_instructions() -> [Instruction; 0x100] {
+        use InstructionType as IT;
+        use AddressMode as AM;
+        use RegisterType as RT;
+
+        let mut instructions: [Instruction; 0x100] = [Instruction::default(); 0x100];
+
+        instructions[0x00] = Instruction {
+            in_type: IT::Nop,
+            ..Instruction::default()
+        };
+
+        instructions[0x05] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R,
+            reg_1: RT::B,
+            ..Instruction::default()
+        };
+
+        instructions[0x0E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D8,
+            reg_1: RT::C,
+            ..Instruction::default()
+        };
+
+        instructions[0xAF] = Instruction {
+            in_type: IT::Xor,
+            mode: AM::R,
+            reg_1: RT::A,
+            ..Instruction::default()
+        };
+
+        instructions[0xC3] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::D16,
+            ..Instruction::default()
+        };
+
+        instructions[0xF3] = Instruction {
+            in_type: IT::Di,
+            ..Instruction::default()
+        };
+        
+        return instructions;
+    }
+}
+
+impl RegisterType {
+    pub fn is_16bit(&self) -> bool {
+        use RegisterType as RT;
+        matches!(self, RT::AF | RT::BC | RT::DE | RT::HL | RT::SP | RT::PC)
+    }
+}
+
+impl From<u8> for Instruction {
+    fn from(code: u8) -> Self {
+        Instruction::INSTRUCTIONS[code as usize]
     }
 }
 

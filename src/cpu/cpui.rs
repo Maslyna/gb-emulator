@@ -33,21 +33,21 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             regs: Registers::new(),
             fetched_data: 0,
             mem_dest: 0,
             dest_is_mem: false,
             cur_opcode: 0,
-            cur_inst: Instruction::from_op_code(0),
+            cur_inst: Instruction::from(0),
             halted: false,
             stepping: false,
             int_master_enabled: false,
         }
     }
 
-    pub const fn with_pc(pc: u16) -> Self {
+    pub fn with_pc(pc: u16) -> Self {
         let mut cpu = Cpu::new();
         cpu.regs.pc = pc;
 
@@ -129,7 +129,7 @@ impl Cpu {
 
     fn fetch_instruction(&mut self, bus: &mut Bus) {
         self.cur_opcode = bus.read(self.regs.pc);
-        self.cur_inst = Instruction::from_op_code(self.cur_opcode);
+        self.cur_inst = Instruction::from(self.cur_opcode);
         self.regs.pc += 1;
     }
 
@@ -234,12 +234,49 @@ impl Cpu {
             RT::E => self.regs.e as u16,
             RT::H => self.regs.h as u16,
             RT::L => self.regs.l as u16,
-            RT::AF => reverse_u16!(self.regs.a as u16),
-            RT::BC => reverse_u16!(self.regs.b as u16),
-            RT::DE => reverse_u16!(self.regs.d as u16),
-            RT::HL => reverse_u16!(self.regs.h as u16),
+            RT::AF => reverse_u16!((self.regs.a as u16) << 8 | self.regs.f as u16),
+            RT::BC => reverse_u16!((self.regs.b as u16) << 8 | self.regs.c as u16),
+            RT::DE => reverse_u16!((self.regs.d as u16) << 8 | self.regs.e as u16),
+            RT::HL => reverse_u16!((self.regs.h as u16) << 8 | self.regs.l as u16),
             RT::SP => self.regs.pc,
             RT::PC => self.regs.sp,
+        };
+    }
+
+    fn set_reg(&mut self, reg_type: RegisterType, value: u16) {
+        use RegisterType as RT;
+        match reg_type {
+            RT::None => panic!("Invalid register type!"),
+            RT::A => self.regs.a = (value & 0xFF) as u8,
+            RT::F => self.regs.f = (value & 0xFF) as u8,
+            RT::B => self.regs.b = (value & 0xFF) as u8,
+            RT::C => self.regs.c = (value & 0xFF) as u8,
+            RT::D => self.regs.d = (value & 0xFF) as u8,
+            RT::E => self.regs.e = (value & 0xFF) as u8,
+            RT::H => self.regs.h = (value & 0xFF) as u8,
+            RT::L => self.regs.l = (value & 0xFF) as u8,
+            RT::AF => {
+                let reversed = reverse_u16!(value);
+                self.regs.a = (reversed & 0xFF) as u8;
+                self.regs.f = (reversed >> 8) as u8;
+            },
+            RT::BC => {
+                let reversed = reverse_u16!(value);
+                self.regs.b = (reversed & 0xFF) as u8;
+                self.regs.c = (reversed >> 8) as u8;
+            },
+            RT::DE => {
+                let reversed = reverse_u16!(value);
+                self.regs.d = (reversed & 0xFF) as u8;
+                self.regs.e = (reversed >> 8) as u8;
+            },
+            RT::HL => {
+                let reversed = reverse_u16!(value);
+                self.regs.h = (reversed & 0xFF) as u8;
+                self.regs.l = (reversed >> 8) as u8;
+            },
+            RT::SP => self.regs.sp = value,
+            RT::PC => self.regs.pc = value,
         };
     }
 
@@ -291,7 +328,14 @@ impl Cpu {
 
     fn nop(&self) {}
 
-    fn ld(&mut self) {}
+    fn ld(&mut self) {
+        if self.dest_is_mem {
+            //e.g.: LD (BC) A
+            if self.cur_inst.reg_2.is_16bit() {
+                
+            }
+        }
+    }
 
     fn jp(&mut self) {
         if self.check_cond() {

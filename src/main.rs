@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args();
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
-    
+
     let rom = match Rom::load(path) {
         Ok(r) => r,
         Err(err) => return Err(Box::new(err)),
