@@ -1,5 +1,5 @@
 use super::instructions::*;
-use crate::bus::Bus;
+use crate::{bus::Bus, emu::Emu};
 
 #[derive(Debug, Default)]
 pub struct Registers {
@@ -54,17 +54,19 @@ impl Cpu {
         cpu
     }
 
-    pub fn step(&mut self, bus: &mut Bus) -> bool {
+
+    pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> bool {
+
         if !self.halted {
             self.fetch_instruction(bus);
-            self.fetch_data(bus);
-            self.execute();
+            self.fetch_data(bus, emu);
+            self.execute(emu);
         }
 
         return true;
     }
 
-    fn execute(&mut self) {
+    fn execute(&mut self, emu: &mut Emu) {
         println!(
             "PC: {:04X} T:{:?}\tOP: {:02X}\n\tA: {:02X} B: {:02X} C: {:02X}",
             self.regs.pc,
@@ -101,7 +103,7 @@ impl Cpu {
             IT::Or => todo!(),
             IT::Cp => todo!(),
             IT::Pop => todo!(),
-            IT::Jp => self.jp(),
+            IT::Jp => self.jp(emu),
             IT::Push => todo!(),
             IT::Ret => todo!(),
             IT::Cb => todo!(),
@@ -133,7 +135,7 @@ impl Cpu {
         self.regs.pc += 1;
     }
 
-    fn fetch_data(&mut self, bus: &mut Bus) {
+    fn fetch_data(&mut self, bus: &mut Bus, emu: &mut Emu) {
         self.mem_dest = 0;
         self.dest_is_mem = false;
 
@@ -146,14 +148,14 @@ impl Cpu {
             }
             AM::R_D8 => {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 self.regs.pc += 1;
             }
             AM::A16_R | AM::D16_R => {
                 let lo = bus.read(self.regs.pc);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 let hi = bus.read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 
                 self.mem_dest = combine_bytes!(lo, hi);
                 self.dest_is_mem = true;
@@ -161,16 +163,16 @@ impl Cpu {
             }
             AM::D16 | AM::R_D16 => {
                 let lo = bus.read(self.regs.pc);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 let hi = bus.read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
             AM::MR_D8 => {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 self.regs.pc += 1;
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
                 self.dest_is_mem = true;
@@ -180,19 +182,19 @@ impl Cpu {
                 self.dest_is_mem = true;
                 let dest = self.read_reg(self.cur_inst.reg_1);
                 self.fetched_data = bus.read(dest) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
             }
             AM::R_A16 => {
                 let lo = bus.read(self.regs.pc);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 let hi = bus.read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
 
                 let addr = combine_bytes!(lo, hi);
 
                 self.regs.pc += 2;
                 self.fetched_data = bus.read(addr) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
             }
             AM::MR_R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
@@ -211,11 +213,11 @@ impl Cpu {
                 }
 
                 self.fetched_data = bus.read(address) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
             }
             AM::HLI_R => {
                 self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
-                self.emu_cycles(1);
+                emu.emu_cycles(1);
                 todo!()
             }
             _ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
@@ -337,10 +339,10 @@ impl Cpu {
         }
     }
 
-    fn jp(&mut self) {
+    fn jp(&mut self, emu: &mut Emu) {
         if self.check_cond() {
             self.regs.pc = self.fetched_data;
-            self.emu_cycles(1);
+            emu.emu_cycles(1);
         }
     }
 

@@ -1,28 +1,23 @@
-use crate::cartridge::rom::Rom;
-use crate::cpu::Cpu;
-use crate::bus::Bus;
+use crate::{bus::Bus, cpu::Cpu};
 
+#[derive(Debug)]
 pub struct Emu {
     pub paused: bool,
     pub running: bool,
     pub ticks: u64,
-    pub cpu: Cpu,
-    pub bus: Bus,
 }
 
 
 impl Emu {
-    pub fn new(rom: Rom) -> Self {
+    pub fn new() -> Self {
         Self {
             paused: false,
             running: false,
             ticks: 0,
-            cpu: Cpu::with_pc(0x100),
-            bus: Bus::new(rom),
         }
     }
 
-    pub fn run(&mut self) -> Result<(), EmuError> {
+    pub fn run(&mut self, cpu: &mut Cpu, bus: &mut Bus) -> Result<(), EmuError> {
         self.running = true;
         while self.running {
             if self.paused {
@@ -30,7 +25,7 @@ impl Emu {
                 continue;
             }
 
-            if !self.cpu.step(&mut self.bus) {
+            if !cpu.step(self, bus) {
                 self.running = false;
                 return Err(EmuError::CpuErr("CPU execution failed!".to_string()));
             }
@@ -39,6 +34,8 @@ impl Emu {
         }
         return Ok(());
     }
+
+    pub fn emu_cycles(&mut self, _cycles: i32) {}
 }
 
 
