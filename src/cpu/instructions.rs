@@ -137,63 +137,56 @@ impl Instruction {
     }
 
     const fn init_instructions() -> [Instruction; 0x100] {
-        use InstructionType as IT;
         use AddressMode as AM;
+        use InstructionType as IT;
         use RegisterType as RT;
 
-        let mut instructions: [Instruction; 0x100] = [Instruction::default(); 0x100];
+        let mut inst: [Instruction; 0x100] = [Instruction::default(); 0x100];
 
-        // 0x0X 
-        instructions[0x00] = Instruction {
+        // 0x0X
+        inst[0x00] = Instruction {
             in_type: IT::Nop,
             ..Instruction::default()
         };
-
-        instructions[0x01] = Instruction {
+        inst[0x01] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D16,
             reg_1: RT::BC,
             ..Instruction::default()
         };
-
-        instructions[0x02] = Instruction {
+        inst[0x02] = Instruction {
             in_type: IT::Ld,
             mode: AM::MR_R,
             reg_1: RT::BC,
             reg_2: RT::A,
             ..Instruction::default()
         };
-
-        instructions[0x05] = Instruction {
+        inst[0x05] = Instruction {
             in_type: IT::Dec,
             mode: AM::R,
             reg_1: RT::B,
             ..Instruction::default()
         };
-
-        instructions[0x06] = Instruction {
-            in_type: IT::Dec,
+        inst[0x06] = Instruction {
+            in_type: IT::Ld,
             mode: AM::R_D8,
             reg_1: RT::B,
             ..Instruction::default()
         };
-
-        instructions[0x08] = Instruction {
+        inst[0x08] = Instruction {
             in_type: IT::Ld,
             mode: AM::A16_R,
             reg_2: RT::SP,
             ..Instruction::default()
         };
-
-        instructions[0x0A] = Instruction {
+        inst[0x0A] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_MR,
             reg_1: RT::A,
             reg_2: RT::BC,
             ..Instruction::default()
         };
-
-        instructions[0x0E] = Instruction {
+        inst[0x0E] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D8,
             reg_1: RT::C,
@@ -201,72 +194,628 @@ impl Instruction {
         };
 
         // 0x1X
-
-        instructions[0x11] = Instruction {
+        inst[0x11] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D16,
             reg_1: RT::DE,
             ..Instruction::default()
         };
-
-        instructions[0x12] = Instruction {
+        inst[0x12] = Instruction {
             in_type: IT::Ld,
             mode: AM::MR_R,
             reg_1: RT::DE,
             reg_2: RT::A,
             ..Instruction::default()
         };
-
-        instructions[0x15] = Instruction {
+        inst[0x15] = Instruction {
             in_type: IT::Dec,
             mode: AM::R,
             reg_1: RT::D,
             ..Instruction::default()
         };
-
-        instructions[0x16] = Instruction {
-            in_type: IT::Dec,
+        inst[0x16] = Instruction {
+            in_type: IT::Ld,
             mode: AM::R_D8,
             reg_1: RT::D,
             ..Instruction::default()
         };
-
-        instructions[0x1A] = Instruction {
+        inst[0x1A] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_MR,
             reg_1: RT::A,
             reg_2: RT::DE,
             ..Instruction::default()
         };
-
-        instructions[0x1E] = Instruction {
+        inst[0x1E] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D8,
             reg_1: RT::E,
             ..Instruction::default()
         };
 
-        //
+        //0x2X
+        inst[0x21] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D16,
+            reg_1: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x22] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::HLI_R,
+            reg_1: RT::HL,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x25] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R,
+            reg_1: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x26] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D8,
+            reg_1: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x2A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::HLI_R,
+            reg_1: RT::A,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x2E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D8,
+            reg_1: RT::L,
+            ..Instruction::default()
+        };
 
-        instructions[0xAF] = Instruction {
+        //0x3X
+        inst[0x31] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D16,
+            reg_1: RT::SP,
+            ..Instruction::default()
+        };
+        inst[0x32] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::HLD_R,
+            reg_1: RT::HL,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x35] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R,
+            reg_1: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x36] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_D8,
+            reg_1: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x3A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::HLD_R,
+            reg_1: RT::A,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x3E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D8,
+            reg_1: RT::A,
+            ..Instruction::default()
+        };
+
+        //0x4X
+        inst[0x40] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x41] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x42] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x43] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x44] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x45] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x46] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::B,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x47] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::B,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x48] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x49] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x4A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x4B] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x4C] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x4D] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x4E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::C,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x4F] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::C,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        //0x5X
+        inst[0x50] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x51] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x52] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x53] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x54] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x55] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::D,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x56] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::D,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x57] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x58] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x59] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x5A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x5B] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x5C] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x5D] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x5E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::E,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x5F] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::E,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        //0x6X
+        inst[0x60] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x61] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x62] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x63] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x64] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x65] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x66] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::H,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x67] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::H,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x68] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x69] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x6A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x6B] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x6C] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x6D] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x6E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::L,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x6F] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::L,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        //0x7X
+        inst[0x70] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x71] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x72] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x73] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x74] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x75] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x76] = Instruction {
+            in_type: IT::Halt,
+            ..Instruction::default()
+        };
+        inst[0x77] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::HL,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0x78] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::B,
+            ..Instruction::default()
+        };
+        inst[0x79] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0x7A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::D,
+            ..Instruction::default()
+        };
+        inst[0x7B] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::E,
+            ..Instruction::default()
+        };
+        inst[0x7C] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::H,
+            ..Instruction::default()
+        };
+        inst[0x7D] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::L,
+            ..Instruction::default()
+        };
+        inst[0x7E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::A,
+            reg_2: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x7F] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_R,
+            reg_1: RT::A,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        //
+        inst[0xAF] = Instruction {
             in_type: IT::Xor,
             mode: AM::R,
             reg_1: RT::A,
             ..Instruction::default()
         };
 
-        instructions[0xC3] = Instruction {
+        inst[0xC3] = Instruction {
             in_type: IT::Jp,
             mode: AM::D16,
             ..Instruction::default()
         };
 
-        instructions[0xF3] = Instruction {
+        //0xEX
+        inst[0xE2] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::C,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0xEA] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::A16_R,
+            reg_1: RT::None,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        //0xFX
+        inst[0xF2] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::A,
+            reg_2: RT::C,
+            ..Instruction::default()
+        };
+        inst[0xF3] = Instruction {
             in_type: IT::Di,
             ..Instruction::default()
         };
-        
-        return instructions;
+        inst[0xFA] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_A16,
+            reg_1: RT::A,
+            ..Instruction::default()
+        };
+
+        return inst;
     }
 }
 

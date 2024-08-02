@@ -201,14 +201,14 @@ impl Cpu {
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
                 self.dest_is_mem = false;
 
-                if self.cur_inst.reg_1 == RT::C {
+                if matches!(self.cur_inst.reg_1, RT::C) {
                     self.mem_dest |= 0xFF00;
                 }
             }
             AM::R_MR => {
                 let mut address = self.read_reg(self.cur_inst.reg_2);
 
-                if self.cur_inst.reg_1 == RT::C {
+                if matches!(self.cur_inst.reg_1, RT::C) {
                     address |= 0xFF00;
                 }
 
