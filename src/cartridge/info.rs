@@ -54,6 +54,7 @@ pub enum RomType {
     HuC1RamBattery,
 }
 
+#[allow(dead_code)]
 pub enum License {
     Unknown,
     None,

@@ -143,8 +143,24 @@ impl Instruction {
 
         let mut instructions: [Instruction; 0x100] = [Instruction::default(); 0x100];
 
+        // 0x0X 
         instructions[0x00] = Instruction {
             in_type: IT::Nop,
+            ..Instruction::default()
+        };
+
+        instructions[0x01] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D16,
+            reg_1: RT::BC,
+            ..Instruction::default()
+        };
+
+        instructions[0x02] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::BC,
+            reg_2: RT::A,
             ..Instruction::default()
         };
 
@@ -155,12 +171,82 @@ impl Instruction {
             ..Instruction::default()
         };
 
+        instructions[0x06] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R_D8,
+            reg_1: RT::B,
+            ..Instruction::default()
+        };
+
+        instructions[0x08] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::A16_R,
+            reg_2: RT::SP,
+            ..Instruction::default()
+        };
+
+        instructions[0x0A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::A,
+            reg_2: RT::BC,
+            ..Instruction::default()
+        };
+
         instructions[0x0E] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D8,
             reg_1: RT::C,
             ..Instruction::default()
         };
+
+        // 0x1X
+
+        instructions[0x11] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D16,
+            reg_1: RT::DE,
+            ..Instruction::default()
+        };
+
+        instructions[0x12] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::MR_R,
+            reg_1: RT::DE,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
+
+        instructions[0x15] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R,
+            reg_1: RT::D,
+            ..Instruction::default()
+        };
+
+        instructions[0x16] = Instruction {
+            in_type: IT::Dec,
+            mode: AM::R_D8,
+            reg_1: RT::D,
+            ..Instruction::default()
+        };
+
+        instructions[0x1A] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_MR,
+            reg_1: RT::A,
+            reg_2: RT::DE,
+            ..Instruction::default()
+        };
+
+        instructions[0x1E] = Instruction {
+            in_type: IT::Ld,
+            mode: AM::R_D8,
+            reg_1: RT::E,
+            ..Instruction::default()
+        };
+
+        //
 
         instructions[0xAF] = Instruction {
             in_type: IT::Xor,

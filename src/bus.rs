@@ -15,22 +15,35 @@
 use crate::cartridge::rom::Rom;
 
 pub struct Bus {
-    rom: Rom
+    rom: Rom,
 }
 
 impl Bus {
     pub fn new(rom: Rom) -> Self {
-        Self {
-            rom
-        }
+        Self { rom }
     }
-
 
     pub fn read(&self, address: u16) -> u8 {
         return self.rom.read(address);
     }
 
+    pub fn read16(&self, address: u16) -> u16 {
+        let lo: u8 = self.read(address);
+        let hi: u8 = self.read(address);
+
+        return combine_bytes!(lo, hi);
+    }
+
     pub fn write(&mut self, address: u16, value: u8) {
-        self.rom.write(address, value);
+        if address < 0x8000 {
+            self.rom.write(address, value);
+        }
+
+        todo!("NOT IMPLEMENTED WRITING INTO ROM");
+    }
+
+    pub fn write16(&mut self, address: u16, value: u16) {
+        self.write(address + 1, ((value >> 8) & 0xFF) as u8);
+        self.write(address, (value & 0xFF) as u8);
     }
 }

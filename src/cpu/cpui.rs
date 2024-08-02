@@ -60,13 +60,13 @@ impl Cpu {
         if !self.halted {
             self.fetch_instruction(bus);
             self.fetch_data(bus, emu);
-            self.execute(emu);
+            self.execute(bus, emu);
         }
 
         return true;
     }
 
-    fn execute(&mut self, emu: &mut Emu) {
+    fn execute(&mut self, bus: &mut Bus, emu: &mut Emu) {
         println!(
             "PC: {:04X} T:{:?}\tOP: {:02X}\n\tA: {:02X} B: {:02X} C: {:02X}",
             self.regs.pc,
@@ -80,7 +80,7 @@ impl Cpu {
         match self.cur_inst.in_type {
             IT::None => panic!("INVALID INSTRUCTION: {:?}", self.cur_inst),
             IT::Nop => self.nop(),
-            IT::Ld => self.ld(),
+            IT::Ld => self.ld(emu, bus),
             IT::Inc => todo!(),
             IT::Dec => todo!(),
             IT::Rlca => todo!(),
@@ -282,9 +282,9 @@ impl Cpu {
         };
     }
 
-    fn process() {}
+    fn _process() {}
 
-    fn emu_cycles(&self, _cycles: i32) {}
+    fn _emu_cycles(&self, _cycles: i32) {}
 
     fn set_flags(&mut self, z: i8, n: i8, h: i8, c: i8) {
         if z >= 0 {
@@ -305,11 +305,11 @@ impl Cpu {
         bit!(self.regs.f, 7)
     }
 
-    fn flag_n(&self) -> bool {
+    fn _flag_n(&self) -> bool {
         bit!(self.regs.f, 6)
     }
 
-    fn flag_h(&self) -> bool {
+    fn _flag_h(&self) -> bool {
         bit!(self.regs.f, 5)
     }
 
@@ -330,13 +330,28 @@ impl Cpu {
 
     fn nop(&self) {}
 
-    fn ld(&mut self) {
+    fn ld(&mut self, emu: &mut Emu, bus: &mut Bus) {
+        use AddressMode as AM;
+
         if self.dest_is_mem {
             //e.g.: LD (BC) A
             if self.cur_inst.reg_2.is_16bit() {
-                
+                emu.emu_cycles(1);
+                bus.write16(self.mem_dest, self.fetched_data);
+            } else {
+                bus.write(self.mem_dest, self.fetched_data as u8);
             }
+            return;
         }
+
+        if matches!(self.cur_inst.mode, AM::HL_SPR) {
+            let hflag = (self.read_reg(self.cur_inst.reg_2) & 0xF) + (self.fetched_data & 0xF) >= 0x10;
+            let cflag = (self.read_reg(self.cur_inst.reg_2) & 0xFF) + (self.fetched_data & 0xFF) >= 0x100;
+
+            self.set_flags(0, 0, hflag as i8, cflag as i8);
+        }
+
+        self.set_reg(self.cur_inst.reg_1, self.fetched_data);
     }
 
     fn jp(&mut self, emu: &mut Emu) {
