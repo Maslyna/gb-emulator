@@ -54,9 +54,7 @@ impl Cpu {
         cpu
     }
 
-
     pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> bool {
-
         if !self.halted {
             self.fetch_instruction(bus);
             self.fetch_data(bus, emu);
@@ -146,6 +144,9 @@ impl Cpu {
             AM::R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_1);
             }
+            AM::R_R => {
+                self.fetched_data = self.read_reg(self.cur_inst.reg_1);
+            }
             AM::R_D8 => {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
                 emu.emu_cycles(1);
@@ -156,7 +157,7 @@ impl Cpu {
                 emu.emu_cycles(1);
                 let hi = bus.read(self.regs.pc + 1);
                 emu.emu_cycles(1);
-                
+
                 self.mem_dest = combine_bytes!(lo, hi);
                 self.dest_is_mem = true;
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
@@ -166,7 +167,7 @@ impl Cpu {
                 emu.emu_cycles(1);
                 let hi = bus.read(self.regs.pc + 1);
                 emu.emu_cycles(1);
-                
+
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
@@ -215,12 +216,52 @@ impl Cpu {
                 self.fetched_data = bus.read(address) as u16;
                 emu.emu_cycles(1);
             }
-            AM::HLI_R => {
+            AM::R_HLI => {
                 self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
                 emu.emu_cycles(1);
-                todo!()
+                self.set_reg(RT::HL, self.read_reg(RT::HL) + 1)
             }
-            _ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
+            AM::R_HLD => {
+                self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
+                emu.emu_cycles(1);
+                self.set_reg(RT::HL, self.read_reg(RT::HL) - 1)
+            }
+            AM::HLI_R => {
+                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+
+                self.dest_is_mem = true;
+                self.set_reg(RT::HL, self.read_reg(RT::HL) + 1);
+            }
+            AM::HLD_R => {
+                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+
+                self.dest_is_mem = true;
+                self.set_reg(RT::HL, self.read_reg(RT::HL) - 1);
+            }
+            AM::R_A8 => {
+                self.fetched_data = bus.read(self.regs.pc) as u16;
+                emu.emu_cycles(1);
+                self.regs.pc += 1;
+            }
+            AM::A8_R => {
+                self.mem_dest = bus.read(self.regs.pc) as u16 | 0xFF00;
+                self.dest_is_mem = true;
+                emu.emu_cycles(1);
+                self.regs.pc += 1;
+            }
+            AM::HL_SPR => {
+                self.fetched_data = bus.read(self.regs.pc) as u16;
+                emu.emu_cycles(1);
+                self.regs.pc += 1;
+            }
+            AM::D8 => {
+                self.fetched_data = bus.read(self.regs.pc) as u16;
+                emu.emu_cycles(1);
+                self.regs.pc += 1;
+            }
+            //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
     }
 
@@ -261,30 +302,28 @@ impl Cpu {
                 let reversed = reverse_u16!(value);
                 self.regs.a = (reversed & 0xFF) as u8;
                 self.regs.f = (reversed >> 8) as u8;
-            },
+            }
             RT::BC => {
                 let reversed = reverse_u16!(value);
                 self.regs.b = (reversed & 0xFF) as u8;
                 self.regs.c = (reversed >> 8) as u8;
-            },
+            }
             RT::DE => {
                 let reversed = reverse_u16!(value);
                 self.regs.d = (reversed & 0xFF) as u8;
                 self.regs.e = (reversed >> 8) as u8;
-            },
+            }
             RT::HL => {
                 let reversed = reverse_u16!(value);
                 self.regs.h = (reversed & 0xFF) as u8;
                 self.regs.l = (reversed >> 8) as u8;
-            },
+            }
             RT::SP => self.regs.sp = value,
             RT::PC => self.regs.pc = value,
         };
     }
 
     fn _process() {}
-
-    fn _emu_cycles(&self, _cycles: i32) {}
 
     fn set_flags(&mut self, z: i8, n: i8, h: i8, c: i8) {
         if z >= 0 {
@@ -345,10 +384,12 @@ impl Cpu {
         }
 
         if matches!(self.cur_inst.mode, AM::HL_SPR) {
-            let hflag = (self.read_reg(self.cur_inst.reg_2) & 0xF) + (self.fetched_data & 0xF) >= 0x10;
-            let cflag = (self.read_reg(self.cur_inst.reg_2) & 0xFF) + (self.fetched_data & 0xFF) >= 0x100;
+            let hflag = ((self.read_reg(self.cur_inst.reg_2) & 0xF) + (self.fetched_data & 0xF)
+                >= 0x10) as i8;
+            let cflag = ((self.read_reg(self.cur_inst.reg_2) & 0xFF) + (self.fetched_data & 0xFF)
+                >= 0x100) as i8;
 
-            self.set_flags(0, 0, hflag as i8, cflag as i8);
+            self.set_flags(0, 0, hflag, cflag);
         }
 
         self.set_reg(self.cur_inst.reg_1, self.fetched_data);
@@ -386,4 +427,3 @@ impl Registers {
         }
     }
 }
-

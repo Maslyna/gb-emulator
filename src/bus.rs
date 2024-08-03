@@ -39,7 +39,7 @@ impl Bus {
             self.rom.write(address, value);
         }
 
-        todo!("NOT IMPLEMENTED WRITING INTO ROM");
+        println!("UNSUPPORTED BUS WRITE {address:04X}");
     }
 
     pub fn write16(&mut self, address: u16, value: u16) {
