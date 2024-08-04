@@ -27,7 +27,7 @@ pub struct Cpu {
     cur_inst: Instruction,
 
     halted: bool,
-    stepping: bool,
+    _stepping: bool,
 
     int_master_enabled: bool,
 }
@@ -42,7 +42,7 @@ impl Cpu {
             cur_opcode: 0,
             cur_inst: Instruction::from(0),
             halted: false,
-            stepping: false,
+            _stepping: false,
             int_master_enabled: false,
         }
     }

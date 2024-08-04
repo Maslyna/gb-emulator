@@ -1,3 +1,6 @@
+//
+//  TODO: probably I should rewrite here everything
+//
 use super::info::*;
 
 use std::fs::File;
@@ -15,8 +18,8 @@ pub struct Rom {
 }
 
 pub struct Header {
-    entry: [u8; 4],            // 0x100 - 0x103
-    logo: [u8; 0x30],          // 0x104 - 0x133
+    _entry: [u8; 4],            // 0x100 - 0x103
+    _logo: [u8; 0x30],          // 0x104 - 0x133
     title: [u8; 16],           // 0x134 - 0x143
     manufacture_code: [u8; 4], // 0x13F - 0x142
     new_licence_code: [u8; 2], // 0x144 - 0x145
@@ -53,11 +56,11 @@ impl Rom {
         };
     }
 
-    pub fn read(&self, adress: u16) -> u8 {
-        return self.rom_data[adress as usize];
+    pub fn read(&self, address: u16) -> u8 {
+        return self.rom_data[address as usize];
     }
 
-    pub fn write(&mut self, _adress: u16, _value: u8) {
+    pub fn write(&mut self, _address: u16, _value: u8) {
         todo!("for now ROM only");
     }
 
@@ -77,10 +80,10 @@ impl Rom {
 impl Header {
     pub fn new(cartrige: &[u8]) -> Self {
         Self {
-            entry: cartrige[LOCATION_ENTRY_START..=LOCATION_ENTRY_END]
+            _entry: cartrige[LOCATION_ENTRY_START..=LOCATION_ENTRY_END]
                 .try_into()
                 .unwrap(),
-            logo: cartrige[LOCATION_LOGO_START..=LOCATION_LOGO_END]
+            _logo: cartrige[LOCATION_LOGO_START..=LOCATION_LOGO_END]
                 .try_into()
                 .unwrap(),
             title: cartrige[LOCATION_TITLE_START..=LOCATION_TITLE_END]
@@ -97,7 +100,7 @@ impl Header {
             dest_code: cartrige[LOCATION_DEST_CODE],
             cgb_flag: cartrige[LOCATION_CGB_FLAG],
             sgb_flag: cartrige[LOCATION_SGB_FLAG],
-            cart_type: RomType::from_byte(cartrige[LOCATION_CART_TYPE]),
+            cart_type: RomType::from(cartrige[LOCATION_CART_TYPE]),
             rom_size: cartrige[LOCATION_ROM_SIZE],
             ram_size: cartrige[LOCATION_RAM_SIZE],
             checksum: cartrige[LOCATION_CHECKSUM],
@@ -105,13 +108,6 @@ impl Header {
                 .try_into()
                 .unwrap(),
         }
-    }
-
-    pub fn license_name(&self) -> &'static str {
-        return LIC_CODE
-            .get(&self.license_code)
-            .copied()
-            .unwrap_or("UNKNOWN");
     }
 }
 
@@ -127,30 +123,34 @@ impl std::fmt::Display for Rom {
 
 impl std::fmt::Display for Header {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        //writeln!(f, "\tEntry: {:02X?}", self.entry)?;
-        //writeln!(f, "\tLogo: {:02X?}", self.logo)?;
-        writeln!(f, "\tTitle: {}", u8_slice_to_ascii(&self.title))?;
-        writeln!(f, "\tManufacture Code: {:?}", self.manufacture_code)?;
-        writeln!(f, "\tNew License Code: {:02X?}", self.new_licence_code)?;
         writeln!(
             f,
-            "\tLicense Code: {:02X} - {}",
+            "\tTitle: {}\n\
+             \tManufacture Code: {:?}\n\
+             \tNew License Code: {:02X?}\n\
+             \tLicense Code: {:02X} - {:?}\n\
+             \tDestination Code: {:02X}\n\
+             \tCGB Flag: {:02X}\n\
+             \tSGB Flag: {:02X}\n\
+             \tROM Type: {:?}\n\
+             \tROM Size: {:02X}\n\
+             \tRAM Size: {:02X}\n\
+             \tChecksum: {:02X}\n\
+             \tGlobal Checksum: {:02X?}",
+            u8_slice_to_ascii(&self.title),
+            self.manufacture_code,
+            self.new_licence_code,
             self.license_code,
-            self.license_name()
-        )?;
-        writeln!(f, "\tDestination Code: {:02X}", self.dest_code)?;
-        writeln!(f, "\tCGB Flag: {:02X}", self.cgb_flag)?;
-        writeln!(f, "\tSGB Flag: {:02X}", self.sgb_flag)?;
-        writeln!(
-            f,
-            "\tROM Type: {:?}",
-            self.cart_type
-        )?;
-        writeln!(f, "\tROM Size: {:02X}", self.rom_size)?;
-        writeln!(f, "\tRAM Size: {:02X}", self.ram_size)?;
-        writeln!(f, "\tChecksum: {:02X}", self.checksum)?;
-        writeln!(f, "\tGlobal Checksum: {:02X?}", self.global_checksum)?;
-        Ok(())
+            License::from(self.license_code),
+            self.dest_code,
+            self.cgb_flag,
+            self.sgb_flag,
+            self.cart_type,
+            self.rom_size,
+            self.ram_size,
+            self.checksum,
+            self.global_checksum,
+        )
     }
 }
 

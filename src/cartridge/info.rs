@@ -1,5 +1,3 @@
-use phf::phf_map;
-
 pub const LOCATION_ENTRY_START: usize = 0x100;
 pub const LOCATION_ENTRY_END: usize = 0x103;
 pub const LOCATION_LOGO_START: usize = 0x104;
@@ -54,7 +52,7 @@ pub enum RomType {
     HuC1RamBattery,
 }
 
-#[allow(dead_code)]
+#[derive(Debug)]
 pub enum License {
     Unknown,
     None,
@@ -114,10 +112,78 @@ pub enum License {
     PackInSoft,
 }
 
+impl From<u8> for License {
+    fn from(value: u8) -> Self {
+        match value {
+            0x00u8 => License::None,
+            0x01u8 => License::Nintendo,
+            0x08u8 => License::Capcom,
+            0x13u8 => License::ElectronicArts,
+            0x18u8 => License::HudsonSoft,
+            0x19u8 => License::Bai,
+            0x20u8 => License::Kss,
+            0x22u8 => License::Pow,
+            0x24u8 => License::PcmComplete,
+            0x25u8 => License::SanX,
+            0x28u8 => License::KemcoJapan,
+            0x29u8 => License::Seta,
+            0x30u8 => License::Viacom,
+            0x31u8 => License::Nintendo,
+            0x32u8 => License::Bandai,
+            0x33u8 => License::Ocean,
+            0x34u8 => License::Konami,
+            0x35u8 => License::Hector,
+            0x37u8 => License::Taito,
+            0x38u8 => License::Hudson,
+            0x39u8 => License::Banpresto,
+            0x41u8 => License::Ubisoft,
+            0x42u8 => License::Atlus,
+            0x44u8 => License::Malibu,
+            0x46u8 => License::Andel,
+            0x47u8 => License::BulletProof,
+            0x49u8 => License::Irem,
+            0x50u8 => License::Absolute,
+            0x51u8 => License::Acclaim,
+            0x52u8 => License::Activision,
+            0x53u8 => License::AmericanSammy,
+            0x54u8 => License::Konami,
+            0x55u8 => License::HiTechEntertainment,
+            0x56u8 => License::Ljn,
+            0x57u8 => License::Matchbox,
+            0x58u8 => License::Mattel,
+            0x59u8 => License::MiltonBradley,
+            0x60u8 => License::Titus,
+            0x61u8 => License::Virgin,
+            0x64u8 => License::LucasArts,
+            0x67u8 => License::Ocean,
+            0x69u8 => License::ElectronicArts,
+            0x70u8 => License::Infogrames,
+            0x71u8 => License::Interplay,
+            0x72u8 => License::Broderbund,
+            0x73u8 => License::Sculptured,
+            0x75u8 => License::Sci,
+            0x78u8 => License::Thq,
+            0x79u8 => License::Accolade,
+            0x80u8 => License::Misawa,
+            0x83u8 => License::Lozc,
+            0x86u8 => License::TokumaShotenIntermedia,
+            0x87u8 => License::TsukudaOriginal,
+            0x91u8 => License::Chunsoft,
+            0x92u8 => License::VideoSystem,
+            0x93u8 => License::Ocean,
+            0x95u8 => License::Varie,
+            0x96u8 => License::Yonezawa,
+            0x97u8 => License::Kaneko,
+            0x99u8 => License::PackInSoft,
+            0xA4u8 => License::Konami,
+            _ => License::Unknown
+        }
+    }
+}
 
-impl RomType {
-    pub fn from_byte(byte: u8) -> RomType {
-        match byte {
+impl From<u8> for RomType {
+    fn from(value: u8) -> Self {
+        match value {
             0x00 => RomType::RomOnly,
             0x01 => RomType::Mbc1,
             0x02 => RomType::Mbc1Ram,
@@ -150,67 +216,3 @@ impl RomType {
         }
     }
 }
-
-pub const LIC_CODE: phf::Map<u8, &'static str> = phf_map! {
-    0x00u8 => "None",
-    0x01u8 => "Nintendo R&D1",
-    0x08u8 => "Capcom",
-    0x13u8 => "Electronic Arts",
-    0x18u8 => "Hudson Soft",
-    0x19u8 => "b-ai",
-    0x20u8 => "kss",
-    0x22u8 => "pow",
-    0x24u8 => "PCM Complete",
-    0x25u8 => "san-x",
-    0x28u8 => "Kemco Japan",
-    0x29u8 => "seta",
-    0x30u8 => "Viacom",
-    0x31u8 => "Nintendo",
-    0x32u8 => "Bandai",
-    0x33u8 => "Ocean/Acclaim",
-    0x34u8 => "Konami",
-    0x35u8 => "Hector",
-    0x37u8 => "Taito",
-    0x38u8 => "Hudson",
-    0x39u8 => "Banpresto",
-    0x41u8 => "Ubi Soft",
-    0x42u8 => "Atlus",
-    0x44u8 => "Malibu",
-    0x46u8 => "angel",
-    0x47u8 => "Bullet-Proof",
-    0x49u8 => "irem",
-    0x50u8 => "Absolute",
-    0x51u8 => "Acclaim",
-    0x52u8 => "Activision",
-    0x53u8 => "American sammy",
-    0x54u8 => "Konami",
-    0x55u8 => "Hi tech entertainment",
-    0x56u8 => "LJN",
-    0x57u8 => "Matchbox",
-    0x58u8 => "Mattel",
-    0x59u8 => "Milton Bradley",
-    0x60u8 => "Titus",
-    0x61u8 => "Virgin",
-    0x64u8 => "LucasArts",
-    0x67u8 => "Ocean",
-    0x69u8 => "Electronic Arts",
-    0x70u8 => "Infogrames",
-    0x71u8 => "Interplay",
-    0x72u8 => "Broderbund",
-    0x73u8 => "sculptured",
-    0x75u8 => "sci",
-    0x78u8 => "THQ",
-    0x79u8 => "Accolade",
-    0x80u8 => "misawa",
-    0x83u8 => "lozc",
-    0x86u8 => "Tokuma Shoten Intermedia",
-    0x87u8 => "Tsukuda Original",
-    0x91u8 => "Chunsoft",
-    0x92u8 => "Video system",
-    0x93u8 => "Ocean/Acclaim",
-    0x95u8 => "Varie",
-    0x96u8 => "Yonezawa/s'pal",
-    0x97u8 => "Kaneko",
-    0x99u8 => "Pack in soft",
-    0xA4u8 => "Konami (Yu-Gi-Oh!)",
-};

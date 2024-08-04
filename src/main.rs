@@ -5,6 +5,7 @@ mod macros;
 mod cartridge;
 mod cpu;
 mod bus;
+mod ram;
 mod emu;
 
 use bus::Bus;
@@ -26,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     println!("{}", rom);
 
-    let mut cpu = Cpu::with_pc(0x100);
+    let mut cpu = Cpu::new();
     let mut bus = Bus::new(rom);
     let mut emu = Emu::new();
     
