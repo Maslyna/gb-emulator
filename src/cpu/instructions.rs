@@ -781,6 +781,13 @@ impl Instruction {
         };
 
         //0xEX
+        inst[0xE0] = Instruction {
+            in_type: IT::Ldh,
+            mode: AM::A8_R,
+            reg_1: RT::None,
+            reg_2: RT::A,
+            ..Instruction::default()
+        };
         inst[0xE2] = Instruction {
             in_type: IT::Ld,
             mode: AM::MR_R,
@@ -797,6 +804,12 @@ impl Instruction {
         };
 
         //0xFX
+        inst[0xF0] = Instruction {
+            in_type: IT::Ldh,
+            mode: AM::R_A8,
+            reg_1: RT::A,
+            ..Instruction::default()
+        };
         inst[0xF2] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_MR,

@@ -1,13 +1,15 @@
 pub struct Ram {
     wram: [u8; 0x2000],
-    hram:[u8; 0x80],
+    hram: [u8; 0x80],
 }
 
 impl Ram {
     pub const fn new() -> Self {
-        Self {wram: [0u8; 0x2000], hram: [0u8; 0x80]}
+        Self {
+            wram: [0u8; 0x2000],
+            hram: [0u8; 0x80],
+        }
     }
-
 
     pub fn wram_read(&self, mut address: u16) -> u8 {
         address -= 0xC000;

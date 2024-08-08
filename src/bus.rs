@@ -13,6 +13,7 @@
 // 0xFF80 - 0xFFFE : Zero Page
 
 use crate::cartridge::rom::Rom;
+use crate::cpu::Cpu;
 use crate::ram::Ram;
 
 pub struct Bus {
@@ -21,14 +22,14 @@ pub struct Bus {
 }
 
 impl Bus {
-    pub fn new(rom: Rom) -> Self {
+    pub const fn new(rom: Rom) -> Self {
         Self {
             rom,
             ram: Ram::new(),
         }
     }
 
-    pub fn read(&self, address: u16) -> u8 {
+    pub fn read(&self, cpu: &Cpu, address: u16) -> u8 {
         match address {
             // ROM DATA
             ..0x8000 => self.rom.read(address),
@@ -47,19 +48,19 @@ impl Bus {
             // IO Registers
             0xFF00..0xFF80 => todo!("UNSUPPORTED BUS READ {address:04X}"),
             // CPU ENABLED REGISTERS
-            0xFFFF => todo!("UNSUPPORTED BUS READ {address:04X}"),
+            0xFFFF => cpu.ie_reg,
             _ => self.ram.hram_read(address),
         }
     }
 
-    pub fn read16(&self, address: u16) -> u16 {
-        let lo: u8 = self.read(address);
-        let hi: u8 = self.read(address);
+    pub fn read16(&self, cpu: &Cpu, address: u16) -> u16 {
+        let lo: u8 = self.read(cpu, address);
+        let hi: u8 = self.read(cpu, address);
 
         return combine_bytes!(lo, hi);
     }
 
-    pub fn write(&mut self, address: u16, value: u8) {
+    pub fn write(&mut self, cpu: &mut Cpu, address: u16, value: u8) {
         match address {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),
@@ -78,13 +79,13 @@ impl Bus {
             // IO Registers
             0xFF00..0xFF80 => todo!("UNSUPPORTED BUS WRITE {address:04X}"),
             // CPU SET ENABLE REGISTER
-            0xFFFF => todo!("UNSUPPORTED BUS WRITE {address:04X}"),
+            0xFFFF => cpu.ie_reg = value,
             _ => self.ram.hram_write(address, value),
         }
     }
 
-    pub fn write16(&mut self, address: u16, value: u16) {
-        self.write(address + 1, ((value >> 8) & 0xFF) as u8);
-        self.write(address, (value & 0xFF) as u8);
+    pub fn write16(&mut self, cpu: &mut Cpu, address: u16, value: u16) {
+        self.write(cpu, address + 1, ((value >> 8) & 0xFF) as u8);
+        self.write(cpu, address, (value & 0xFF) as u8);
     }
 }

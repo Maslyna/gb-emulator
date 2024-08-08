@@ -18,6 +18,7 @@ pub struct Registers {
 #[derive(Debug)]
 pub struct Cpu {
     pub regs: Registers,
+    pub ie_reg: u8,
 
     // current fetch
     fetched_data: u16,
@@ -36,6 +37,7 @@ impl Cpu {
     pub fn new() -> Self {
         Self {
             regs: Registers::new(),
+            ie_reg: 0,
             fetched_data: 0,
             mem_dest: 0,
             dest_is_mem: false,
@@ -66,13 +68,20 @@ impl Cpu {
 
     fn execute(&mut self, bus: &mut Bus, emu: &mut Emu) {
         println!(
-            "PC: {:04X} T:{:?}\tOP: {:02X}\n\tA: {:02X} B: {:02X} C: {:02X}",
+            "PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
+                A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X}",
             self.regs.pc,
             self.cur_inst.in_type,
             self.cur_opcode,
+            bus.read(self, self.regs.pc + 1),
+            bus.read(self, self.regs.pc + 2),
             self.regs.a,
             self.regs.b,
-            self.regs.c
+            self.regs.c,
+            self.regs.d,
+            self.regs.e,
+            self.regs.h,
+            self.regs.l
         );
         use InstructionType as IT;
         match self.cur_inst.in_type {
@@ -107,7 +116,7 @@ impl Cpu {
             IT::Cb => todo!(),
             IT::Call => todo!(),
             IT::Reti => todo!(),
-            IT::Ldh => todo!(),
+            IT::Ldh => self.ldh(emu, bus),
             IT::Jphl => todo!(),
             IT::Di => self.di(),
             IT::Ei => todo!(),
@@ -128,7 +137,7 @@ impl Cpu {
     }
 
     fn fetch_instruction(&mut self, bus: &mut Bus) {
-        self.cur_opcode = bus.read(self.regs.pc);
+        self.cur_opcode = bus.read(self, self.regs.pc);
         self.cur_inst = Instruction::from(self.cur_opcode);
         self.regs.pc += 1;
     }
@@ -148,32 +157,32 @@ impl Cpu {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_1);
             }
             AM::R_D8 => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.regs.pc) as u16;
+                emu.cycle(1);
                 self.regs.pc += 1;
             }
             AM::A16_R | AM::D16_R => {
-                let lo = bus.read(self.regs.pc);
-                emu.emu_cycles(1);
-                let hi = bus.read(self.regs.pc + 1);
-                emu.emu_cycles(1);
+                let lo = bus.read(self, self.regs.pc);
+                emu.cycle(1);
+                let hi = bus.read(self, self.regs.pc + 1);
+                emu.cycle(1);
 
                 self.mem_dest = combine_bytes!(lo, hi);
                 self.dest_is_mem = true;
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
             }
             AM::D16 | AM::R_D16 => {
-                let lo = bus.read(self.regs.pc);
-                emu.emu_cycles(1);
-                let hi = bus.read(self.regs.pc + 1);
-                emu.emu_cycles(1);
+                let lo = bus.read(self, self.regs.pc);
+                emu.cycle(1);
+                let hi = bus.read(self, self.regs.pc + 1);
+                emu.cycle(1);
 
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
             AM::MR_D8 => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.regs.pc) as u16;
+                emu.cycle(1);
                 self.regs.pc += 1;
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
                 self.dest_is_mem = true;
@@ -182,20 +191,20 @@ impl Cpu {
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
                 self.dest_is_mem = true;
                 let dest = self.read_reg(self.cur_inst.reg_1);
-                self.fetched_data = bus.read(dest) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, dest) as u16;
+                emu.cycle(1);
             }
             AM::R_A16 => {
-                let lo = bus.read(self.regs.pc);
-                emu.emu_cycles(1);
-                let hi = bus.read(self.regs.pc + 1);
-                emu.emu_cycles(1);
+                let lo = bus.read(self, self.regs.pc);
+                emu.cycle(1);
+                let hi = bus.read(self, self.regs.pc + 1);
+                emu.cycle(1);
 
                 let addr = combine_bytes!(lo, hi);
 
                 self.regs.pc += 2;
-                self.fetched_data = bus.read(addr) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, addr) as u16;
+                emu.cycle(1);
             }
             AM::MR_R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
@@ -213,17 +222,17 @@ impl Cpu {
                     address |= 0xFF00;
                 }
 
-                self.fetched_data = bus.read(address) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, address) as u16;
+                emu.cycle(1);
             }
             AM::R_HLI => {
-                self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.read_reg(self.cur_inst.reg_2)) as u16;
+                emu.cycle(1);
                 self.set_reg(RT::HL, self.read_reg(RT::HL) + 1)
             }
             AM::R_HLD => {
-                self.fetched_data = bus.read(self.read_reg(self.cur_inst.reg_2)) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.read_reg(self.cur_inst.reg_2)) as u16;
+                emu.cycle(1);
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1)
             }
             AM::HLI_R => {
@@ -241,27 +250,26 @@ impl Cpu {
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1);
             }
             AM::R_A8 => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.regs.pc) as u16;
+                emu.cycle(1);
                 self.regs.pc += 1;
             }
             AM::A8_R => {
-                self.mem_dest = bus.read(self.regs.pc) as u16 | 0xFF00;
+                self.mem_dest = bus.read(self, self.regs.pc) as u16 | 0xFF00;
                 self.dest_is_mem = true;
-                emu.emu_cycles(1);
+                emu.cycle(1);
                 self.regs.pc += 1;
             }
             AM::HL_SPR => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.regs.pc) as u16;
+                emu.cycle(1);
                 self.regs.pc += 1;
             }
             AM::D8 => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu.emu_cycles(1);
+                self.fetched_data = bus.read(self, self.regs.pc) as u16;
+                emu.cycle(1);
                 self.regs.pc += 1;
-            }
-            //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
+            } //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
     }
 
@@ -375,10 +383,10 @@ impl Cpu {
         if self.dest_is_mem {
             //e.g.: LD (BC) A
             if self.cur_inst.reg_2.is_16bit() {
-                emu.emu_cycles(1);
-                bus.write16(self.mem_dest, self.fetched_data);
+                emu.cycle(1);
+                bus.write16(self, self.mem_dest, self.fetched_data);
             } else {
-                bus.write(self.mem_dest, self.fetched_data as u8);
+                bus.write(self, self.mem_dest, self.fetched_data as u8);
             }
             return;
         }
@@ -395,10 +403,23 @@ impl Cpu {
         self.set_reg(self.cur_inst.reg_1, self.fetched_data);
     }
 
+    fn ldh(&mut self, emu: &mut Emu, bus: &mut Bus) {
+        use RegisterType as RT;
+        match self.cur_inst.reg_1 {
+            RT::A => {
+                self.set_reg(self.cur_inst.reg_1, bus.read(self, 0xFF00 | self.fetched_data) as u16);
+            }
+            _ => {
+                bus.write(self, 0xFF00 | self.fetched_data, self.regs.a);
+            }
+        }
+        emu.cycle(1);
+    }
+
     fn jp(&mut self, emu: &mut Emu) {
         if self.check_cond() {
             self.regs.pc = self.fetched_data;
-            emu.emu_cycles(1);
+            emu.cycle(1);
         }
     }
 

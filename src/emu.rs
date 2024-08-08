@@ -35,7 +35,7 @@ impl Emu {
         return Ok(());
     }
 
-    pub fn emu_cycles(&mut self, _cycles: i32) {}
+    pub fn cycle(&mut self, _cycles: i32) {}
 }
 
 
