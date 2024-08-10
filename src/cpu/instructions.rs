@@ -766,7 +766,7 @@ impl Instruction {
             ..Instruction::default()
         };
 
-        //
+        //0xAX
         inst[0xAF] = Instruction {
             in_type: IT::Xor,
             mode: AM::R,
@@ -774,11 +774,39 @@ impl Instruction {
             ..Instruction::default()
         };
 
+        //0xCX
+        inst[0xC1] = Instruction {
+            in_type: IT::Pop,
+            mode: AM::R,
+            reg_1: RT::BC,
+            ..Instruction::default()
+        };
         inst[0xC3] = Instruction {
             in_type: IT::Jp,
             mode: AM::D16,
             ..Instruction::default()
         };
+        inst[0xC5] = Instruction {
+            in_type: IT::Push,
+            mode: AM::R,
+            reg_1: RT::BC,
+            ..Instruction::default()
+        };
+
+        //0xD1
+        inst[0xD1] = Instruction {
+            in_type: IT::Pop,
+            mode: AM::R,
+            reg_1: RT::DE,
+            ..Instruction::default()
+        };
+        inst[0xD5] = Instruction {
+            in_type: IT::Push,
+            mode: AM::R,
+            reg_1: RT::DE,
+            ..Instruction::default()
+        };
+
 
         //0xEX
         inst[0xE0] = Instruction {
@@ -788,11 +816,23 @@ impl Instruction {
             reg_2: RT::A,
             ..Instruction::default()
         };
+        inst[0xE1] = Instruction {
+            in_type: IT::Pop,
+            mode: AM::R,
+            reg_1: RT::HL,
+            ..Instruction::default()
+        };
         inst[0xE2] = Instruction {
             in_type: IT::Ld,
             mode: AM::MR_R,
             reg_1: RT::C,
             reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0xE5] = Instruction {
+            in_type: IT::Push,
+            mode: AM::R,
+            reg_1: RT::HL,
             ..Instruction::default()
         };
         inst[0xEA] = Instruction {
@@ -810,6 +850,12 @@ impl Instruction {
             reg_1: RT::A,
             ..Instruction::default()
         };
+        inst[0xF1] = Instruction {
+            in_type: IT::Pop,
+            mode: AM::R,
+            reg_1: RT::AF,
+            ..Instruction::default()
+        };
         inst[0xF2] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_MR,
@@ -819,6 +865,12 @@ impl Instruction {
         };
         inst[0xF3] = Instruction {
             in_type: IT::Di,
+            ..Instruction::default()
+        };
+        inst[0xF5] = Instruction {
+            in_type: IT::Push,
+            mode: AM::R,
+            reg_1: RT::AF,
             ..Instruction::default()
         };
         inst[0xFA] = Instruction {

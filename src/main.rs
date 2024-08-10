@@ -21,18 +21,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
 
-    let rom = match Rom::load(path) {
-        Ok(r) => r,
-        Err(err) => return Err(Box::new(err)),
-    };
+    let rom = Rom::load(path)?;
     println!("{}", rom);
 
     let mut cpu = Cpu::new();
     let mut bus = Bus::new(rom);
     let mut emu = Emu::new();
     
-    return match emu.run(&mut cpu, &mut bus) {
-        Ok(_) => Ok(()),
-        Err(err) => Err(Box::new(err))
-    };
+    emu.run(&mut cpu, &mut bus)?;
+
+    Ok(())
 }

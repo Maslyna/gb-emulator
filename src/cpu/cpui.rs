@@ -273,6 +273,30 @@ impl Cpu {
         };
     }
 
+    fn stack_push(&mut self, bus: &mut Bus, data: u8) {
+        self.regs.sp -= 1;
+        bus.write(self, self.regs.sp, data);
+    }
+
+    fn stack_push16(&mut self, bus: &mut Bus, data: u16) {
+        self.stack_push(bus, ((data >> 8) & 0xFF) as u8);
+        self.stack_push(bus, (data & 0xFF) as u8);
+    }
+
+    fn stack_pop(&mut self, bus: &mut Bus) -> u8 {
+        let res = bus.read(self, self.regs.sp);
+        self.regs.sp += 1;
+
+        res
+    }
+
+    fn stack_pop16(&mut self, bus: &mut Bus) -> u16 {
+        let hi = self.stack_pop(bus);
+        let lo = self.stack_pop(bus);
+
+        combine_bytes!(hi, lo)
+    }
+
     fn read_reg(&self, reg_type: RegisterType) -> u16 {
         use RegisterType as RT;
         return match reg_type {
@@ -421,6 +445,34 @@ impl Cpu {
             self.regs.pc = self.fetched_data;
             emu.cycle(1);
         }
+    }
+
+    fn pop(&mut self, emu: &mut Emu, bus: &mut Bus) {
+        let lo = self.stack_pop(bus);
+        emu.cycle(1);
+        let hi = self.stack_pop(bus);
+        emu.cycle(1);
+
+        let val = combine_bytes!(lo, hi);
+
+        use RegisterType as RT;
+        
+        match self.cur_inst.reg_1 {
+            RT::A => self.set_reg(self.cur_inst.reg_1, val & 0xFFF0),
+            _ => self.set_reg(self.cur_inst.reg_1, val)
+        };
+    }
+
+    fn push(&mut self, emu: &mut Emu, bus: &mut Bus) {
+        let hi = (self.read_reg(self.cur_inst.reg_1) >> 8) & 0xFF;
+        emu.cycle(1);
+        self.stack_push(bus, hi as u8);
+
+        let lo = self.read_reg(self.cur_inst.reg_2) & 0xFF;
+        emu.cycle(1);
+        self.stack_push(bus, hi as u8);
+
+        emu.cycle(1);
     }
 
     fn di(&mut self) {
