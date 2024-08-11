@@ -42,7 +42,7 @@ impl Cpu {
             mem_dest: 0,
             dest_is_mem: false,
             cur_opcode: 0,
-            cur_inst: Instruction::from(0),
+            cur_inst: Instruction::default(),
             halted: false,
             _stepping: false,
             int_master_enabled: false,
@@ -109,9 +109,9 @@ impl Cpu {
             IT::Xor => self.xor(),
             IT::Or => todo!(),
             IT::Cp => todo!(),
-            IT::Pop => todo!(),
+            IT::Pop => self.pop(emu, bus),
             IT::Jp => self.jp(emu),
-            IT::Push => todo!(),
+            IT::Push => self.push(emu, bus),
             IT::Ret => todo!(),
             IT::Cb => todo!(),
             IT::Call => todo!(),
@@ -273,26 +273,26 @@ impl Cpu {
         };
     }
 
-    fn stack_push(&mut self, bus: &mut Bus, data: u8) {
+    fn _stack_push(&mut self, bus: &mut Bus, data: u8) {
         self.regs.sp -= 1;
         bus.write(self, self.regs.sp, data);
     }
 
-    fn stack_push16(&mut self, bus: &mut Bus, data: u16) {
-        self.stack_push(bus, ((data >> 8) & 0xFF) as u8);
-        self.stack_push(bus, (data & 0xFF) as u8);
+    fn _stack_push16(&mut self, bus: &mut Bus, data: u16) {
+        self._stack_push(bus, ((data >> 8) & 0xFF) as u8);
+        self._stack_push(bus, (data & 0xFF) as u8);
     }
 
-    fn stack_pop(&mut self, bus: &mut Bus) -> u8 {
+    fn _stack_pop(&mut self, bus: &mut Bus) -> u8 {
         let res = bus.read(self, self.regs.sp);
         self.regs.sp += 1;
 
         res
     }
 
-    fn stack_pop16(&mut self, bus: &mut Bus) -> u16 {
-        let hi = self.stack_pop(bus);
-        let lo = self.stack_pop(bus);
+    fn _stack_pop16(&mut self, bus: &mut Bus) -> u16 {
+        let hi = self._stack_pop(bus);
+        let lo = self._stack_pop(bus);
 
         combine_bytes!(hi, lo)
     }
@@ -448,9 +448,9 @@ impl Cpu {
     }
 
     fn pop(&mut self, emu: &mut Emu, bus: &mut Bus) {
-        let lo = self.stack_pop(bus);
+        let lo = self._stack_pop(bus);
         emu.cycle(1);
-        let hi = self.stack_pop(bus);
+        let hi = self._stack_pop(bus);
         emu.cycle(1);
 
         let val = combine_bytes!(lo, hi);
@@ -466,11 +466,11 @@ impl Cpu {
     fn push(&mut self, emu: &mut Emu, bus: &mut Bus) {
         let hi = (self.read_reg(self.cur_inst.reg_1) >> 8) & 0xFF;
         emu.cycle(1);
-        self.stack_push(bus, hi as u8);
+        self._stack_push(bus, hi as u8);
 
         let lo = self.read_reg(self.cur_inst.reg_2) & 0xFF;
         emu.cycle(1);
-        self.stack_push(bus, hi as u8);
+        self._stack_push(bus, lo as u8);
 
         emu.cycle(1);
     }
