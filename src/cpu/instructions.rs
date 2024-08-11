@@ -807,7 +807,6 @@ impl Instruction {
             ..Instruction::default()
         };
 
-
         //0xEX
         inst[0xE0] = Instruction {
             in_type: IT::Ldh,

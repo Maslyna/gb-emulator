@@ -12,14 +12,17 @@ pub enum CartrigeError {
     InvalidFile(&'static str),
     IoError(io::Error),
 }
+
+#[derive(Debug)]
 pub struct Rom {
     rom_data: Box<[u8]>,
     rom_header: Header,
 }
 
+#[derive(Debug)]
 pub struct Header {
-    _entry: [u8; 4],            // 0x100 - 0x103
-    _logo: [u8; 0x30],          // 0x104 - 0x133
+    _entry: [u8; 4],           // 0x100 - 0x103
+    _logo: [u8; 0x30],         // 0x104 - 0x133
     title: [u8; 16],           // 0x134 - 0x143
     manufacture_code: [u8; 4], // 0x13F - 0x142
     new_licence_code: [u8; 2], // 0x144 - 0x145

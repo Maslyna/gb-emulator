@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Ram {
     wram: [u8; 0x2000],
     hram: [u8; 0x80],
