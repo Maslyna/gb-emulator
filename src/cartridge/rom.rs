@@ -39,11 +39,7 @@ pub struct Header {
 
 impl Rom {
     pub fn load(path: String) -> Result<Rom, CartrigeError> {
-        let mut file: File = match File::open(path) {
-            Ok(f) => f,
-            Err(err) => return Err(CartrigeError::IoError(err)),
-        };
-
+        let mut file: File = File::open(path).map_err(CartrigeError::IoError)?;
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         let header = Header::new(&buffer);

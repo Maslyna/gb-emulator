@@ -101,7 +101,7 @@ pub enum InstructionType {
     //CB instructions...
     Rlc,
     Rrc,
-    RL,
+    Rl,
     Rr,
     Sla,
     Sra,
@@ -140,6 +140,7 @@ impl Instruction {
         use AddressMode as AM;
         use InstructionType as IT;
         use RegisterType as RT;
+        use ConditionType as CT;
 
         let mut inst: [Instruction; 0x100] = [Instruction::default(); 0x100];
 
@@ -219,6 +220,11 @@ impl Instruction {
             reg_1: RT::D,
             ..Instruction::default()
         };
+        inst[0x28] = Instruction {
+            in_type: IT::Jr,
+            mode: AM::D8,
+            ..Instruction::default()
+        };
         inst[0x1A] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_MR,
@@ -234,6 +240,12 @@ impl Instruction {
         };
 
         //0x2X
+        inst[0x20] = Instruction {
+            in_type: IT::Jr,
+            mode: AM::D8,
+            condition: CT::NZ,
+            ..Instruction::default()
+        };
         inst[0x21] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D16,
@@ -259,6 +271,12 @@ impl Instruction {
             reg_1: RT::H,
             ..Instruction::default()
         };
+        inst[0x28] = Instruction {
+            in_type: IT::Jr,
+            mode: AM::D8,
+            condition: CT::Z,
+            ..Instruction::default()
+        };
         inst[0x2A] = Instruction {
             in_type: IT::Ld,
             mode: AM::HLI_R,
@@ -274,6 +292,12 @@ impl Instruction {
         };
 
         //0x3X
+        inst[0x30] = Instruction {
+            in_type: IT::Jr,
+            mode: AM::D8,
+            condition: CT::NC,
+            ..Instruction::default()
+        };
         inst[0x31] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_D16,
@@ -297,6 +321,12 @@ impl Instruction {
             in_type: IT::Ld,
             mode: AM::MR_D8,
             reg_1: RT::HL,
+            ..Instruction::default()
+        };
+        inst[0x38] = Instruction {
+            in_type: IT::Jr,
+            mode: AM::D8,
+            condition: CT::C,
             ..Instruction::default()
         };
         inst[0x3A] = Instruction {
@@ -775,15 +805,33 @@ impl Instruction {
         };
 
         //0xCX
+        inst[0xC0] = Instruction {
+            in_type: IT::Ret,
+            mode: AM::Imp,
+            condition: CT::NZ,
+            ..Instruction::default()
+        };
         inst[0xC1] = Instruction {
             in_type: IT::Pop,
             mode: AM::R,
             reg_1: RT::BC,
             ..Instruction::default()
         };
+        inst[0xC2] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::D16,
+            condition: CT::NZ,
+            ..Instruction::default()
+        };
         inst[0xC3] = Instruction {
             in_type: IT::Jp,
             mode: AM::D16,
+            ..Instruction::default()
+        };
+        inst[0xC4] = Instruction {
+            in_type: IT::Call,
+            mode: AM::D16,
+            condition: CT::NZ,
             ..Instruction::default()
         };
         inst[0xC5] = Instruction {
@@ -792,18 +840,99 @@ impl Instruction {
             reg_1: RT::BC,
             ..Instruction::default()
         };
+        inst[0xC7] = Instruction {
+            in_type: IT::Rst,
+            param: 0x00,
+            ..Instruction::default()
+        };
+        inst[0xC8] = Instruction {
+            in_type: IT::Ret,
+            mode: AM::Imp,
+            condition: CT::Z,
+            ..Instruction::default()
+        };
+        inst[0xC9] = Instruction {
+            in_type: IT::Ret,
+            ..Instruction::default()
+        };
+        inst[0xCA] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::D16,
+            condition: CT::Z,
+            ..Instruction::default()
+        };
+        inst[0xCC] = Instruction {
+            in_type: IT::Call,
+            mode: AM::D16,
+            condition: CT::Z,
+            ..Instruction::default()
+        };
+        inst[0xCD] = Instruction {
+            in_type: IT::Call,
+            mode: AM::D16,
+            ..Instruction::default()
+        };
+        inst[0xCF] = Instruction {
+            in_type: IT::Rst,
+            param: 0x08,
+            ..Instruction::default()
+        };
 
-        //0xD1
+        //0xD0
+        inst[0xD0] = Instruction {
+            in_type: IT::Ret,
+            mode: AM::Imp,
+            condition: CT::NC,
+            ..Instruction::default()
+        };
         inst[0xD1] = Instruction {
             in_type: IT::Pop,
             mode: AM::R,
             reg_1: RT::DE,
             ..Instruction::default()
         };
+        inst[0xD2] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::D16,
+            condition: CT::NC,
+            ..Instruction::default()
+        };
         inst[0xD5] = Instruction {
             in_type: IT::Push,
             mode: AM::R,
             reg_1: RT::DE,
+            ..Instruction::default()
+        };
+        inst[0xD7] = Instruction {
+            in_type: IT::Rst,
+            param: 0x10,
+            ..Instruction::default()
+        };
+        inst[0xD8] = Instruction {
+            in_type: IT::Ret,
+            mode: AM::Imp,
+            condition: CT::C,
+            ..Instruction::default()
+        };
+        inst[0xD9] = Instruction {
+            in_type: IT::Reti,
+            ..Instruction::default()
+        };
+        inst[0xDC] = Instruction {
+            in_type: IT::Call,
+            mode: AM::D16,
+            condition: CT::C,
+            ..Instruction::default()
+        };
+        inst[0xDA] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::D16,
+            condition: CT::C,
+            ..Instruction::default()
+        };
+        inst[0xDF] = Instruction {
+            in_type: IT::Rst,
+            param: 0x18,
             ..Instruction::default()
         };
 
@@ -834,11 +963,27 @@ impl Instruction {
             reg_1: RT::HL,
             ..Instruction::default()
         };
+        inst[0xE7] = Instruction {
+            in_type: IT::Rst,
+            param: 0x20,
+            ..Instruction::default()
+        };
+        inst[0xE9] = Instruction {
+            in_type: IT::Jp,
+            mode: AM::MR,
+            reg_1: RT::HL,
+            ..Instruction::default()
+        };
         inst[0xEA] = Instruction {
             in_type: IT::Ld,
             mode: AM::A16_R,
             reg_1: RT::None,
             reg_2: RT::A,
+            ..Instruction::default()
+        };
+        inst[0xEF] = Instruction {
+            in_type: IT::Rst,
+            param: 0x28,
             ..Instruction::default()
         };
 
@@ -872,10 +1017,20 @@ impl Instruction {
             reg_1: RT::AF,
             ..Instruction::default()
         };
+        inst[0xF7] = Instruction {
+            in_type: IT::Rst,
+            param: 0x30,
+            ..Instruction::default()
+        };
         inst[0xFA] = Instruction {
             in_type: IT::Ld,
             mode: AM::R_A16,
             reg_1: RT::A,
+            ..Instruction::default()
+        };
+        inst[0xFF] = Instruction {
+            in_type: IT::Rst,
+            param: 0x38,
             ..Instruction::default()
         };
 
