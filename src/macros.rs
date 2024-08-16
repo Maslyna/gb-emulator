@@ -36,3 +36,7 @@ macro_rules! combine_bytes {
         ($lo as u16) | (($hi as u16) << 8)
     };
 }
+
+macro_rules! debug {
+    ($($arg:tt)*) => (if ::std::cfg!(debug_assertions) { ::std::println!($($arg)*); })
+}

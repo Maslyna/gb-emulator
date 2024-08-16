@@ -117,7 +117,7 @@ impl Cpu {
     fn execute(&mut self) {
         println!(
             "PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
-                A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X}",
+                A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
             self.regs.pc,
             self.cur_inst.in_type,
             self.cur_opcode,
@@ -129,15 +129,16 @@ impl Cpu {
             self.regs.d,
             self.regs.e,
             self.regs.h,
-            self.regs.l
+            self.regs.l,
+            self.regs.sp
         );
         use InstructionType as IT;
         match self.cur_inst.in_type {
             IT::None => panic!("INVALID INSTRUCTION: {:?}", self.cur_inst),
             IT::Nop => self.nop(),
             IT::Ld => self.ld(),
-            IT::Inc => todo!(),
-            IT::Dec => todo!(),
+            IT::Inc => self.inc(),
+            IT::Dec => self.dec(),
             IT::Rlca => todo!(),
             IT::Add => todo!(),
             IT::Rrca => todo!(),
@@ -181,7 +182,7 @@ impl Cpu {
             IT::Bit => todo!(),
             IT::Res => todo!(),
             IT::Set => todo!(),
-        }
+        };
     }
 
     fn fetch_instruction(&mut self) {
@@ -460,18 +461,25 @@ impl Cpu {
             } else {
                 self.bus_write(self.mem_dest, self.fetched_data as u8);
             }
+
+            self.emu_cycles(1);
+
             return;
         }
 
-        if matches!(self.cur_inst.mode, AM::HL_SPR) {
+        if self.cur_inst.mode == AM::HL_SPR {
             let hflag = ((self.read_reg(self.cur_inst.reg_2) & 0xF) + (self.fetched_data & 0xF)
                 >= 0x10) as i8;
             let cflag = ((self.read_reg(self.cur_inst.reg_2) & 0xFF) + (self.fetched_data & 0xFF)
                 >= 0x100) as i8;
 
             self.set_flags(0, 0, hflag, cflag);
+            self.set_reg(self.cur_inst.reg_1, self.read_reg(self.cur_inst.reg_2) + self.fetched_data);
+            
+            return;
         }
 
+        debug!("LD: current reg: {:?}, data: {:04X?}", self.cur_inst.reg_1, self.fetched_data);
         self.set_reg(self.cur_inst.reg_1, self.fetched_data);
     }
 
@@ -523,7 +531,7 @@ impl Cpu {
 
     fn ret(&mut self) {
         use ConditionType as CT;
-        
+
         if self.cur_inst.condition != CT::None {
             self.emu_cycles(1);
         }
@@ -544,6 +552,57 @@ impl Cpu {
     fn reti(&mut self) {
         self.int_master_enabled = true;
         self.ret();
+    }
+
+    fn inc(&mut self) {
+        use AddressMode as AM;
+        use RegisterType as RT;
+
+        let mut val = self.read_reg(self.cur_inst.reg_1) + 1;
+
+        if self.cur_inst.reg_1.is_16bit() {
+            self.emu_cycles(1);
+        }
+
+        if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
+            val = (self.bus_read(self.read_reg(RT::HL)) + 1) as u16;
+            val &= 0xFF;
+            self.bus_write(self.read_reg(RT::HL), val as u8);
+        } else {
+            self.set_reg(self.cur_inst.reg_1, val);
+            val = self.read_reg(self.cur_inst.reg_1);
+        }
+
+        if (self.cur_opcode & 0x03) == 0x03 {
+            return;
+        }
+
+        self.set_flags((val == 0) as i8, 0, ((val & 0xFF) == 0) as i8, -1);
+    }
+
+    fn dec(&mut self) {
+        use AddressMode as AM;
+        use RegisterType as RT;
+
+        let mut val = self.read_reg(self.cur_inst.reg_1) - 1;
+
+        if self.cur_inst.reg_1.is_16bit() {
+            self.emu_cycles(1);
+        }
+
+        if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
+            val = (self.bus_read(self.read_reg(RT::HL)) - 1) as u16;
+            self.bus_write(self.read_reg(RT::HL), val as u8);
+        } else {
+            self.set_reg(self.cur_inst.reg_1, val);
+            val = self.read_reg(self.cur_inst.reg_1);
+        }
+
+        if (self.cur_opcode & 0x03) == 0x03 {
+            return;
+        }
+
+        self.set_flags((val == 0) as i8, 1, ((val & 0x0F) == 0x0F) as i8, -1);
     }
 
     fn pop(&mut self) {
