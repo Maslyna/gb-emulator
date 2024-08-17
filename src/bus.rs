@@ -80,6 +80,7 @@ impl Bus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
+        debug!("Write in bus: {address:04X}, value: {value:02X}");
         match address {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),

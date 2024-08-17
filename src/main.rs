@@ -19,13 +19,13 @@ use std::error::Error;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn setup_cpu_bus_emu(cpu: Rc<RefCell<Cpu>>, bus: Rc<RefCell<Bus>>, emu: Rc<RefCell<Emu>>) {
+fn setup(cpu: Rc<RefCell<Cpu>>, bus: Rc<RefCell<Bus>>, emu: Rc<RefCell<Emu>>) {
     cpu.borrow_mut().bus = Some(bus.clone());
     cpu.borrow_mut().emu = Some(emu.clone());
     bus.borrow_mut().cpu = Some(cpu.clone());
 }
 
-fn run_emulation_loop(cpu: Rc<RefCell<Cpu>>, emu: Rc<RefCell<Emu>>) -> Result<(), Box<dyn Error>> {
+fn run_emu(cpu: Rc<RefCell<Cpu>>, emu: Rc<RefCell<Emu>>) -> Result<(), Box<dyn Error>> {
     emu.borrow_mut().running = true;
     while emu.borrow().running {
         if emu.borrow().paused {
@@ -54,14 +54,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rom = Rom::load(path)?;
     println!("{}", rom);
 
-    let cpu = Rc::new(RefCell::new(Cpu::new()));
+    let cpu = Rc::new(RefCell::new(Cpu::with_pc(0x100)));
     let bus = Rc::new(RefCell::new(Bus::new(rom)));
     let emu = Rc::new(RefCell::new(Emu::new()));
 
-    setup_cpu_bus_emu(cpu.clone(), bus.clone(), emu.clone());
+    setup(cpu.clone(), bus.clone(), emu.clone());
 
     emu.borrow_mut().running = true;
-    run_emulation_loop(cpu, emu)?;
+    run_emu(cpu, emu)?;
 
     Ok(())
 }

@@ -115,7 +115,7 @@ impl Cpu {
     }
 
     fn execute(&mut self) {
-        println!(
+        debug!(
             "PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
                 A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
             self.regs.pc,
@@ -203,7 +203,7 @@ impl Cpu {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_1);
             }
             AM::R_R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_1);
+                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
             }
             AM::R_D8 => {
                 self.fetched_data = self.bus_read(self.regs.pc) as u16;
@@ -239,8 +239,7 @@ impl Cpu {
             AM::MR => {
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
                 self.dest_is_mem = true;
-                let dest = self.read_reg(self.cur_inst.reg_1);
-                self.fetched_data = self.bus_read(dest) as u16;
+                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.reg_1)) as u16;
                 self.emu_cycles(1);
             }
             AM::R_A16 => {
@@ -258,16 +257,16 @@ impl Cpu {
             AM::MR_R => {
                 self.fetched_data = self.read_reg(self.cur_inst.reg_2);
                 self.mem_dest = self.read_reg(self.cur_inst.reg_1);
-                self.dest_is_mem = false;
+                self.dest_is_mem = true;
 
-                if matches!(self.cur_inst.reg_1, RT::C) {
+                if self.cur_inst.reg_1 == RT::C {
                     self.mem_dest |= 0xFF00;
                 }
             }
             AM::R_MR => {
                 let mut address = self.read_reg(self.cur_inst.reg_2);
 
-                if matches!(self.cur_inst.reg_1, RT::C) {
+                if self.cur_inst.reg_2 == RT::C {
                     address |= 0xFF00;
                 }
 
@@ -474,12 +473,14 @@ impl Cpu {
                 >= 0x100) as i8;
 
             self.set_flags(0, 0, hflag, cflag);
-            self.set_reg(self.cur_inst.reg_1, self.read_reg(self.cur_inst.reg_2) + self.fetched_data);
-            
+            self.set_reg(
+                self.cur_inst.reg_1,
+                self.read_reg(self.cur_inst.reg_2) + self.fetched_data,
+            );
+
             return;
         }
 
-        debug!("LD: current reg: {:?}, data: {:04X?}", self.cur_inst.reg_1, self.fetched_data);
         self.set_reg(self.cur_inst.reg_1, self.fetched_data);
     }
 
