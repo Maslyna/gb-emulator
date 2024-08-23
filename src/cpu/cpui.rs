@@ -140,7 +140,7 @@ impl Cpu {
             IT::Inc => self.inc(),
             IT::Dec => self.dec(),
             IT::Rlca => todo!(),
-            IT::Add => todo!(),
+            IT::Add => self.add(),
             IT::Rrca => todo!(),
             IT::Stop => todo!(),
             IT::Rla => todo!(),
@@ -150,9 +150,9 @@ impl Cpu {
             IT::Scf => todo!(),
             IT::Ccf => todo!(),
             IT::Halt => todo!(),
-            IT::Adc => todo!(),
-            IT::Sub => todo!(),
-            IT::Sbc => todo!(),
+            IT::Adc => self.adc(),
+            IT::Sub => self.sub(),
+            IT::Sbc => self.sbc(),
             IT::And => todo!(),
             IT::Xor => self.xor(),
             IT::Or => todo!(),
@@ -420,22 +420,27 @@ impl Cpu {
         }
     }
 
+    #[inline(always)]
     fn flag_z(&self) -> bool {
         bit!(self.regs.f, 7)
     }
 
+    #[inline(always)]
     fn _flag_n(&self) -> bool {
         bit!(self.regs.f, 6)
     }
 
+    #[inline(always)]
     fn _flag_h(&self) -> bool {
         bit!(self.regs.f, 5)
     }
 
+    #[inline(always)]
     fn flag_c(&self) -> bool {
         bit!(self.regs.f, 4)
     }
 
+    #[inline(always)]
     fn check_cond(&self) -> bool {
         use ConditionType::*;
         match self.cur_inst.condition {
@@ -447,6 +452,7 @@ impl Cpu {
         }
     }
 
+    #[inline(always)]
     fn nop(&self) {}
 
     fn ld(&mut self) {
@@ -512,18 +518,22 @@ impl Cpu {
         }
     }
 
+    #[inline(always)]
     fn jp(&mut self) {
         self.goto(self.fetched_data, false);
     }
 
+    #[inline(always)]
     fn call(&mut self) {
         self.goto(self.fetched_data, true);
     }
 
+    #[inline(always)]
     fn rst(&mut self) {
         self.goto(self.cur_inst.param as u16, true);
     }
 
+    #[inline(always)]
     fn jr(&mut self) {
         let r: i8 = (self.fetched_data & 0xFF) as i8;
         let addr: u16 = (self.regs.pc as i16 + r as i16) as u16;
@@ -550,6 +560,7 @@ impl Cpu {
         }
     }
 
+    #[inline(always)]
     fn reti(&mut self) {
         self.int_master_enabled = true;
         self.ret();
@@ -606,6 +617,97 @@ impl Cpu {
         self.set_flags((val == 0) as i8, 1, ((val & 0x0F) == 0x0F) as i8, -1);
     }
 
+    fn add(&mut self) {
+        use RegisterType as RT;
+
+        let reg_val: u16 = self.read_reg(self.cur_inst.reg_1);
+        let is_16bit: bool = self.cur_inst.reg_1.is_16bit();
+        let is_sp: bool = self.cur_inst.reg_1 == RT::SP;
+        let val: u32 = if is_sp {
+            (reg_val + self.fetched_data as i8 as u16) as u32
+        } else {
+            (reg_val + self.fetched_data) as u32
+        };
+
+        if is_16bit {
+            self.emu_cycles(1);
+        }
+
+        let (z, h, c) = if is_sp {
+            (
+                0,
+                ((reg_val & 0xF) + (self.fetched_data & 0xF) >= 0x10) as i32,
+                ((reg_val & 0xFF) as i32 + (self.fetched_data & 0xFF) as i32 > 0x100) as i32,
+            )
+        } else if is_16bit {
+            let n: u32 = (reg_val as u32) + (self.fetched_data as u32);
+            (
+                -1,
+                ((reg_val & 0xFFF) + (self.fetched_data & 0xFFF) >= 0x1000) as i32,
+                (n >= 0x10000) as i32,
+            )
+        } else {
+            (
+                ((val & 0xFF) == 0) as i32,
+                ((reg_val & 0xF) + (self.fetched_data & 0xF) >= 0x10) as i32,
+                ((reg_val & 0xFF) as i32 + (self.fetched_data & 0xFF) as i32 >= 0x100) as i32,
+            )
+        };
+
+        #[allow(clippy::identity_op)]
+        self.set_reg(self.cur_inst.reg_1, val as u16 & 0xFFFF);
+        self.set_flags(z as i8, 0, h as i8, c as i8);
+    }
+
+    fn adc(&mut self) {
+        let u = self.fetched_data;
+        let a = self.regs.a as u16;
+        let c = self.flag_c() as u16;
+
+        self.regs.a = ((a + u + c) & 0xFF) as u8;
+
+        self.set_flags(
+            (self.regs.a == 0) as i8,
+            0,
+            (a & 0xF) as i8 + (u & 0xF) as i8 + (c > 0xF) as i8,
+            (a + u + c > 0xFF) as i8,
+        )
+    }
+
+    fn sub(&mut self) {
+        let val = self.read_reg(self.cur_inst.reg_1) - self.fetched_data;
+
+        let z: i32 = (val == 0) as i32;
+        let h: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32 & 0xF)
+            - (self.fetched_data as i32 & 0xF)
+            < 0) as i32;
+        let c: i32 =
+            ((self.read_reg(self.cur_inst.reg_1) as i32) - (self.fetched_data as i32) < 0) as i32;
+
+        self.set_reg(self.cur_inst.reg_1, val);
+        self.set_flags(z as i8, 1, h as i8, c as i8);
+    }
+
+    fn sbc(&mut self) {
+        let val = (self.fetched_data + (self.flag_c() as u16)) as u8;
+
+        let z: i32 = (self.read_reg(self.cur_inst.reg_1) - val as u16 == 0) as i32;
+        let h: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32 & 0xF)
+            - (self.fetched_data as i32 & 0xF)
+            - (self.flag_c() as i32)
+            < 0) as i32;
+        let c: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32)
+            - (self.fetched_data as i32)
+            - (self.flag_c() as i32)
+            < 0) as i32;
+
+        self.set_reg(
+            self.cur_inst.reg_1,
+            self.read_reg(self.cur_inst.reg_1) - val as u16,
+        );
+        self.set_flags(z as i8, 1, h as i8, c as i8);
+    }
+
     fn pop(&mut self) {
         let lo = self.stack_pop();
         self.emu_cycles(1);
@@ -635,10 +737,12 @@ impl Cpu {
         self.emu_cycles(1);
     }
 
+    #[inline(always)]
     fn di(&mut self) {
         self.int_master_enabled = false;
     }
 
+    #[inline(always)]
     fn xor(&mut self) {
         self.regs.a ^= (self.fetched_data & 0xFF) as u8;
     }
