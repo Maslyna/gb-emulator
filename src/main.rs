@@ -19,13 +19,16 @@ use std::error::Error;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-fn setup(cpu: Rc<RefCell<Cpu>>, bus: Rc<RefCell<Bus>>, emu: Rc<RefCell<Emu>>) {
+type RcMut<T> = Rc<RefCell<T>>;
+type Emulator = (RcMut<Cpu>, RcMut<Bus>, RcMut<Emu>);
+
+fn setup(cpu: RcMut<Cpu>, bus: RcMut<Bus>, emu: RcMut<Emu>) {
     cpu.borrow_mut().bus = Some(bus.clone());
     cpu.borrow_mut().emu = Some(emu.clone());
     bus.borrow_mut().cpu = Some(cpu.clone());
 }
 
-fn run_emu(cpu: Rc<RefCell<Cpu>>, emu: Rc<RefCell<Emu>>) -> Result<(), Box<dyn Error>> {
+fn run_emu(cpu: RcMut<Cpu>, emu: RcMut<Emu>) -> Result<(), Box<dyn Error>> {
     emu.borrow_mut().running = true;
     while emu.borrow().running {
         if emu.borrow().paused {
@@ -46,11 +49,7 @@ fn run_emu(cpu: Rc<RefCell<Cpu>>, emu: Rc<RefCell<Emu>>) -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let args = env::args();
-    let path: String = args.last().expect("<PATH> - path to the file");
-    println!("PATH: {}", path);
-
+fn create_emu(path: String) -> Result<Emulator, Box<dyn Error>> {
     let rom = Rom::load(path)?;
     println!("{}", rom);
 
@@ -59,6 +58,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let emu = Rc::new(RefCell::new(Emu::new()));
 
     setup(cpu.clone(), bus.clone(), emu.clone());
+
+    Ok((cpu, bus, emu))
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let args = env::args();
+    let path: String = args.last().expect("<PATH> - path to the file");
+    println!("PATH: {}", path);
+
+    let (cpu, _, emu) = create_emu(path)?;
 
     emu.borrow_mut().running = true;
     run_emu(cpu, emu)?;

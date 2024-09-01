@@ -4,6 +4,9 @@ use crate::{bus::Bus, emu::Emu};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+type OpRcMut<T> = Option<Rc<RefCell<T>>>;
+
+
 #[derive(Debug, Default)]
 pub struct Registers {
     a: u8,
@@ -20,8 +23,8 @@ pub struct Registers {
 
 #[derive(Debug)]
 pub struct Cpu {
-    pub emu: Option<Rc<RefCell<Emu>>>,
-    pub bus: Option<Rc<RefCell<Bus>>>,
+    pub emu: OpRcMut<Emu>,
+    pub bus: OpRcMut<Bus>,
 
     pub regs: Registers,
     pub ie_reg: u8,
@@ -553,8 +556,8 @@ impl Cpu {
             let hi = self.stack_pop();
             self.emu_cycles(1);
 
-            let v = combine_bytes!(lo, hi);
-            self.regs.pc = v;
+            let value = combine_bytes!(lo, hi);
+            self.regs.pc = value;
 
             self.emu_cycles(1);
         }
@@ -577,9 +580,10 @@ impl Cpu {
         }
 
         if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
-            val = (self.bus_read(self.read_reg(RT::HL)) + 1) as u16;
+            let reg_hl = self.read_reg(RT::HL);
+            val = (self.bus_read(reg_hl) + 1) as u16;
             val &= 0xFF;
-            self.bus_write(self.read_reg(RT::HL), val as u8);
+            self.bus_write(reg_hl, val as u8);
         } else {
             self.set_reg(self.cur_inst.reg_1, val);
             val = self.read_reg(self.cur_inst.reg_1);
@@ -603,8 +607,9 @@ impl Cpu {
         }
 
         if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
-            val = (self.bus_read(self.read_reg(RT::HL)) - 1) as u16;
-            self.bus_write(self.read_reg(RT::HL), val as u8);
+            let reg_hl = self.read_reg(RT::HL);
+            val = (self.bus_read(reg_hl) - 1) as u16;
+            self.bus_write(reg_hl, val as u8);
         } else {
             self.set_reg(self.cur_inst.reg_1, val);
             val = self.read_reg(self.cur_inst.reg_1);
@@ -675,36 +680,28 @@ impl Cpu {
     }
 
     fn sub(&mut self) {
-        let val = self.read_reg(self.cur_inst.reg_1) - self.fetched_data;
+        let reg_val = self.read_reg(self.cur_inst.reg_1);
+        let val = reg_val - self.fetched_data;
 
         let z: i32 = (val == 0) as i32;
-        let h: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32 & 0xF)
-            - (self.fetched_data as i32 & 0xF)
-            < 0) as i32;
-        let c: i32 =
-            ((self.read_reg(self.cur_inst.reg_1) as i32) - (self.fetched_data as i32) < 0) as i32;
+        let h: i32 = ((reg_val as i32 & 0xF) - (self.fetched_data as i32 & 0xF) < 0) as i32;
+        let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) < 0) as i32;
 
         self.set_reg(self.cur_inst.reg_1, val);
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
     fn sbc(&mut self) {
-        let val = (self.fetched_data + (self.flag_c() as u16)) as u8;
+        let flag_c = self.flag_c();
+        let val = (self.fetched_data + (flag_c as u16)) as u8;
+        let reg_val = self.read_reg(self.cur_inst.reg_1);
 
-        let z: i32 = (self.read_reg(self.cur_inst.reg_1) - val as u16 == 0) as i32;
-        let h: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32 & 0xF)
-            - (self.fetched_data as i32 & 0xF)
-            - (self.flag_c() as i32)
+        let z: i32 = (reg_val - val as u16 == 0) as i32;
+        let h: i32 = ((reg_val as i32 & 0xF) - (self.fetched_data as i32 & 0xF) - (flag_c as i32)
             < 0) as i32;
-        let c: i32 = ((self.read_reg(self.cur_inst.reg_1) as i32)
-            - (self.fetched_data as i32)
-            - (self.flag_c() as i32)
-            < 0) as i32;
+        let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) - (flag_c as i32) < 0) as i32;
 
-        self.set_reg(
-            self.cur_inst.reg_1,
-            self.read_reg(self.cur_inst.reg_1) - val as u16,
-        );
+        self.set_reg(self.cur_inst.reg_1, reg_val - val as u16);
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
@@ -714,14 +711,15 @@ impl Cpu {
         let hi = self.stack_pop();
         self.emu_cycles(1);
 
-        let val = combine_bytes!(lo, hi);
-
         use RegisterType as RT;
 
-        self.set_reg(self.cur_inst.reg_1, val);
+        let val = combine_bytes!(lo, hi);
+        let reg_1 = self.cur_inst.reg_1;
 
-        if self.cur_inst.reg_1 == RT::AF {
-            self.set_reg(self.cur_inst.reg_1, val & 0xFFF0)
+        self.set_reg(reg_1, val);
+
+        if reg_1 == RT::AF {
+            self.set_reg(reg_1, val & 0xFFF0)
         };
     }
 

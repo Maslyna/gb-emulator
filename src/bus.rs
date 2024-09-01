@@ -19,9 +19,11 @@ use crate::ram::Ram;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+type OpRcMut<T> = Option<Rc<RefCell<T>>>;
+
 #[derive(Debug)]
 pub struct Bus {
-    pub cpu: Option<Rc<RefCell<Cpu>>>,
+    pub cpu: OpRcMut<Cpu>,
 
     rom: Rom,
     ram: Ram,
