@@ -4,8 +4,8 @@ use crate::{bus::Bus, emu::Emu};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-type OpRcMut<T> = Option<Rc<RefCell<T>>>;
-
+type RcMut<T> = Rc<RefCell<T>>;
+type OpRcMut<T> = Option<RcMut<T>>;
 
 #[derive(Debug, Default)]
 pub struct Registers {
@@ -43,20 +43,20 @@ pub struct Cpu {
 }
 
 impl Cpu {
+    fn get_emu(&self) -> &RcMut<Emu> {
+        self.emu.as_ref().expect("NO EMU PROVIDED")
+    }
+
+    fn get_bus(&self) -> &RcMut<Bus> {
+        self.bus.as_ref().expect("NO BUS PROVIDED")
+    }
+
     fn emu_cycles(&mut self, cycles: i32) {
-        self.emu
-            .as_ref()
-            .expect("NO EMU PROVIDED")
-            .borrow_mut()
-            .cycle(cycles);
+        self.get_emu().borrow_mut().cycle(cycles);
     }
 
     fn bus_read(&self, address: u16) -> u8 {
-        self.bus
-            .as_ref()
-            .expect("NO BUS PROVIDED")
-            .borrow()
-            .read(address)
+        self.get_bus().borrow().read(address)
     }
 
     fn _bus_read16(&self, address: u16) -> u16 {
@@ -68,19 +68,11 @@ impl Cpu {
     }
 
     fn bus_write(&self, address: u16, value: u8) {
-        self.bus
-            .as_ref()
-            .expect("NO BUS PROVIDED")
-            .borrow_mut()
-            .write(address, value);
+        self.get_bus().borrow_mut().write(address, value);
     }
 
     fn bus_write16(&self, address: u16, value: u16) {
-        self.bus
-            .as_ref()
-            .expect("NO BUS PROVIDED")
-            .borrow_mut()
-            .write16(address, value);
+        self.get_bus().borrow_mut().write16(address, value);
     }
 
     pub fn new() -> Self {
@@ -118,8 +110,9 @@ impl Cpu {
     }
 
     fn execute(&mut self) {
+        let tick = self.get_emu().borrow().ticks;
         debug!(
-            "PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
+            "{tick:08} - PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
                 A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
             self.regs.pc,
             self.cur_inst.in_type,
@@ -134,6 +127,13 @@ impl Cpu {
             self.regs.h,
             self.regs.l,
             self.regs.sp
+        );
+        debug!(
+            "\tFLAGS: Z-{} C-{} H-{} N-{}",
+            self.flag_z() as i8,
+            self.flag_n() as i8,
+            self.flag_h() as i8,
+            self.flag_c() as i8
         );
         use InstructionType as IT;
         match self.cur_inst.in_type {
@@ -429,12 +429,12 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn _flag_n(&self) -> bool {
+    fn flag_n(&self) -> bool {
         bit!(self.regs.f, 6)
     }
 
     #[inline(always)]
-    fn _flag_h(&self) -> bool {
+    fn flag_h(&self) -> bool {
         bit!(self.regs.f, 5)
     }
 
@@ -684,7 +684,7 @@ impl Cpu {
         let val = reg_val - self.fetched_data;
 
         let z: i32 = (val == 0) as i32;
-        let h: i32 = ((reg_val as i32 & 0xF) - (self.fetched_data as i32 & 0xF) < 0) as i32;
+        let h: i32 = (((reg_val & 0xF) as i32 - (self.fetched_data & 0xF) as i32) < 0) as i32;
         let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) < 0) as i32;
 
         self.set_reg(self.cur_inst.reg_1, val);

@@ -40,3 +40,4 @@ macro_rules! combine_bytes {
 macro_rules! debug {
     ($($arg:tt)*) => (if ::std::cfg!(debug_assertions) { ::std::println!($($arg)*); })
 }
+

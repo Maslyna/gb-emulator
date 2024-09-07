@@ -66,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args();
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
-
+    
     let (cpu, _, emu) = create_emu(path)?;
 
     emu.borrow_mut().running = true;
