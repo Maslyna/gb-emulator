@@ -136,12 +136,12 @@ impl Cpu {
         use InstructionType as IT;
         match self.cur_inst.in_type {
             IT::None => panic!("INVALID INSTRUCTION: {:?}", self.cur_inst),
-            IT::Nop => self.nop(),
-            IT::Ld => self.ld(),
-            IT::Inc => self.inc(),
-            IT::Dec => self.dec(),
+            IT::Nop => self.nop_in(),
+            IT::Ld => self.ld_in(),
+            IT::Inc => self.inc_in(),
+            IT::Dec => self.dec_in(),
             IT::Rlca => todo!(),
-            IT::Add => self.add(),
+            IT::Add => self.add_in(),
             IT::Rrca => todo!(),
             IT::Stop => todo!(),
             IT::Rla => todo!(),
@@ -151,26 +151,26 @@ impl Cpu {
             IT::Scf => todo!(),
             IT::Ccf => todo!(),
             IT::Halt => todo!(),
-            IT::Adc => self.adc(),
-            IT::Sub => self.sub(),
-            IT::Sbc => self.sbc(),
-            IT::And => self.and(),
-            IT::Xor => self.xor(),
-            IT::Or => self.or(),
-            IT::Cp => self.cp(),
-            IT::Jr => self.jr(),
-            IT::Pop => self.pop(),
-            IT::Jp => self.jp(),
-            IT::Push => self.push(),
-            IT::Ret => self.ret(),
-            IT::Reti => self.reti(),
-            IT::Cb => todo!(),
-            IT::Call => self.call(),
-            IT::Ldh => self.ldh(),
+            IT::Adc => self.adc_in(),
+            IT::Sub => self.sub_in(),
+            IT::Sbc => self.sbc_in(),
+            IT::And => self.and_in(),
+            IT::Xor => self.xor_in(),
+            IT::Or => self.or_in(),
+            IT::Cp => self.cp_in(),
+            IT::Jr => self.jr_in(),
+            IT::Pop => self.pop_in(),
+            IT::Jp => self.jp_in(),
+            IT::Push => self.push_in(),
+            IT::Ret => self.ret_in(),
+            IT::Reti => self.reti_in(),
+            IT::Cb => self.cb_in(),
+            IT::Call => self.call_in(),
+            IT::Ldh => self.ldh_in(),
             IT::Jphl => todo!(),
-            IT::Di => self.di(),
+            IT::Di => self.di_in(),
             IT::Ei => todo!(),
-            IT::Rst => self.rst(),
+            IT::Rst => self.rst_in(),
             IT::Err => todo!(),
             IT::Rlc => todo!(),
             IT::Rrc => todo!(),
@@ -379,10 +379,8 @@ impl Cpu {
             RT::E => self.regs.e,
             RT::H => self.regs.h,
             RT::L => self.regs.l,
-            RT::HL => {
-                self.bus_read(self.read_reg(reg_type))
-            },
-            _ => panic!("INVALID REG8: {reg_type:?}")
+            RT::HL => self.bus_read(self.read_reg(reg_type)),
+            _ => panic!("INVALID REG8: {reg_type:?}"),
         }
     }
 
@@ -420,6 +418,25 @@ impl Cpu {
             }
             RT::SP => self.regs.sp = value,
             RT::PC => self.regs.pc = value,
+        };
+    }
+
+    fn set_reg8(&mut self, reg_type: RegisterType, value: u8) {
+        use RegisterType as RT;
+
+        match reg_type {
+            RT::A => self.regs.a = value, // value & 0xFF,
+            RT::F => self.regs.f = value, // value & 0xFF,
+            RT::B => self.regs.b = value, // value & 0xFF,
+            RT::C => self.regs.c = value, // value & 0xFF,
+            RT::D => self.regs.d = value, // value & 0xFF,
+            RT::E => self.regs.e = value, // value & 0xFF,
+            RT::H => self.regs.h = value, // value & 0xFF,
+            RT::L => self.regs.l = value, // value & 0xFF,
+            RT::HL => {
+                self.bus_write(self.read_reg(RT::HL), value);
+            }
+            _ => panic!("SET REG 8: INVALID REGISTER {reg_type:?}"),
         };
     }
 
@@ -473,9 +490,9 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn nop(&self) {}
+    fn nop_in(&self) {}
 
-    fn ld(&mut self) {
+    fn ld_in(&mut self) {
         use AddressMode as AM;
 
         if self.dest_is_mem {
@@ -510,7 +527,7 @@ impl Cpu {
         self.set_reg(self.cur_inst.reg_1, self.fetched_data);
     }
 
-    fn ldh(&mut self) {
+    fn ldh_in(&mut self) {
         use RegisterType as RT;
         match self.cur_inst.reg_1 {
             RT::A => {
@@ -539,28 +556,28 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn jp(&mut self) {
+    fn jp_in(&mut self) {
         self.goto(self.fetched_data, false);
     }
 
     #[inline(always)]
-    fn call(&mut self) {
+    fn call_in(&mut self) {
         self.goto(self.fetched_data, true);
     }
 
     #[inline(always)]
-    fn rst(&mut self) {
+    fn rst_in(&mut self) {
         self.goto(self.cur_inst.param as u16, true);
     }
 
     #[inline(always)]
-    fn jr(&mut self) {
+    fn jr_in(&mut self) {
         let r: i8 = (self.fetched_data & 0xFF) as i8;
         let addr: u16 = (self.regs.pc as i16 + r as i16) as u16;
         self.goto(addr, false);
     }
 
-    fn ret(&mut self) {
+    fn ret_in(&mut self) {
         use ConditionType as CT;
 
         if self.cur_inst.condition != CT::None {
@@ -581,12 +598,12 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn reti(&mut self) {
+    fn reti_in(&mut self) {
         self.int_master_enabled = true;
-        self.ret();
+        self.ret_in();
     }
 
-    fn inc(&mut self) {
+    fn inc_in(&mut self) {
         use AddressMode as AM;
         use RegisterType as RT;
 
@@ -613,7 +630,7 @@ impl Cpu {
         self.set_flags((val == 0) as i8, 0, ((val & 0xFF) == 0) as i8, -1);
     }
 
-    fn dec(&mut self) {
+    fn dec_in(&mut self) {
         use AddressMode as AM;
         use RegisterType as RT;
 
@@ -639,7 +656,7 @@ impl Cpu {
         self.set_flags((val == 0) as i8, 1, ((val & 0x0F) == 0x0F) as i8, -1);
     }
 
-    fn add(&mut self) {
+    fn add_in(&mut self) {
         use RegisterType as RT;
 
         let reg_val: u16 = self.read_reg(self.cur_inst.reg_1);
@@ -681,7 +698,7 @@ impl Cpu {
         self.set_flags(z as i8, 0, h as i8, c as i8);
     }
 
-    fn adc(&mut self) {
+    fn adc_in(&mut self) {
         let u = self.fetched_data;
         let a = self.regs.a as u16;
         let c = self.flag_c() as u16;
@@ -696,7 +713,7 @@ impl Cpu {
         )
     }
 
-    fn sub(&mut self) {
+    fn sub_in(&mut self) {
         let reg_val = self.read_reg(self.cur_inst.reg_1);
         let val = reg_val - self.fetched_data;
 
@@ -708,7 +725,7 @@ impl Cpu {
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
-    fn sbc(&mut self) {
+    fn sbc_in(&mut self) {
         let flag_c = self.flag_c();
         let val = (self.fetched_data + (flag_c as u16)) as u8;
         let reg_val = self.read_reg(self.cur_inst.reg_1);
@@ -722,28 +739,147 @@ impl Cpu {
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
-    fn and(&mut self) {
+    fn and_in(&mut self) {
         self.regs.a &= self.fetched_data as u8;
         self.set_flags((self.regs.a == 0) as i8, 0, 1, 0);
     }
 
-    fn or(&mut self) {
+    fn or_in(&mut self) {
         self.regs.a |= self.fetched_data as u8;
         self.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
     }
 
-    fn cp(&mut self) {
+    fn cp_in(&mut self) {
         let z = ((self.regs.a as i32 - self.fetched_data as i32) == 0) as i8;
         let h = (((self.regs.a as i32 & 0x0F) - (self.fetched_data as i32 & 0x0F)) < 0) as i8;
+
         self.set_flags(z, 1, h, (z < 0) as i8);
     }
 
-    fn xor(&mut self) {
+    fn cb_in(&mut self) {
+        let operation = self.fetched_data;
+        let reg = RegisterType::from(operation as u8 & 0b111);
+        let mut reg_val = self.read_reg8(reg);
+        let bit = (operation as u8 >> 3) & 0b111;
+        let bit_op = (operation as u8 >> 6) & 0b11;
+
+        self.emu_cycles(1);
+
+        use RegisterType as RT;
+        if reg == RT::HL {
+            self.emu_cycles(2);
+        }
+
+        match bit_op {
+            1 => {
+                // BIT
+                let flag_z = !(reg_val & (1 << bit));
+                self.set_flags(flag_z as i8, 0, 1, -1);
+                return;
+            }
+            2 => {
+                // RST
+                reg_val &= !(1 << bit);
+                self.set_reg8(reg, reg_val);
+            }
+            3 => {
+                // SET
+                reg_val |= !(1 << bit);
+                self.set_reg8(reg, reg_val);
+                return;
+            }
+            _ => {}
+        };
+
+        let flag_c = self.flag_c();
+
+        match bit {
+            0 => {
+                // RLC
+                let mut set_c = false;
+                let mut result = reg_val << 1; // (reg_val << 1) & 0xFF;
+
+                if (reg_val & (1 << 7)) != 0 {
+                    result |= 1;
+                    set_c = true;
+                }
+
+                self.set_reg8(reg, result);
+                self.set_flags((result == 0) as i8, 0, 0, set_c as i8);
+                return;
+            }
+            1 => {
+                // RRC
+                let old = reg_val;
+                reg_val >>= 1;
+                reg_val |= old << 7;
+
+                self.set_reg8(reg, reg_val);
+                self.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
+                return;
+            }
+            2 => {
+                // RL
+                let old = reg_val;
+                reg_val <<= 1;
+                reg_val |= flag_c as u8;
+
+                self.set_reg8(reg, reg_val);
+                self.set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
+                return;
+            }
+            3 => {
+                // RR
+                let old = reg_val;
+                reg_val >>= 1;
+                reg_val |= (flag_c as u8) << 7;
+
+                self.set_reg8(reg, reg_val);
+                self.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
+            }
+            4 => {
+                // SLA
+                let old = reg_val;
+                reg_val <<= 1;
+
+                self.set_reg8(reg, reg_val);
+                self.set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
+                return;
+            }
+            5 => {
+                // SRA
+                let u = (reg_val as i8 >> 1) as u8;
+
+                self.set_reg8(reg, u);
+                self.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
+                return;
+            }
+            6 => {
+                // SWAP
+                reg_val = ((reg_val & 0xF0) >> 4) | ((reg_val & 0xF) << 4);
+
+                self.set_reg8(reg, reg_val);
+                self.set_flags((reg_val == 0) as i8, 0, 0, 0);
+                return;
+            }
+            7 => {
+                // SRL
+                let u = reg_val >> 1;
+
+                self.set_reg8(reg, u);
+                self.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
+                return;
+            }
+            _ => panic!("INVALID CB INSTRUCTION: {operation:02X}"),
+        };
+    }
+
+    fn xor_in(&mut self) {
         self.regs.a ^= (self.fetched_data & 0xFF) as u8;
         self.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
     }
 
-    fn pop(&mut self) {
+    fn pop_in(&mut self) {
         let lo = self.stack_pop();
         self.emu_cycles(1);
         let hi = self.stack_pop();
@@ -761,7 +897,7 @@ impl Cpu {
         };
     }
 
-    fn push(&mut self) {
+    fn push_in(&mut self) {
         let hi = (self.read_reg(self.cur_inst.reg_1) >> 8) & 0xFF;
         self.emu_cycles(1);
         self.stack_push(hi as u8);
@@ -774,7 +910,7 @@ impl Cpu {
     }
 
     #[inline(always)]
-    fn di(&mut self) {
+    fn di_in(&mut self) {
         self.int_master_enabled = false;
     }
 }
