@@ -200,18 +200,18 @@ impl Cpu {
         use RegisterType as RT;
         match self.cur_inst.mode {
             AM::Imp => {}
-            AM::R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_1);
+            AM::Reg => {
+                self.fetched_data = self.read_reg(self.cur_inst.r1);
             }
-            AM::R_R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+            AM::RegReg => {
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
             }
-            AM::R_D8 => {
+            AM::RegD8 => {
                 self.fetched_data = self.bus_read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             }
-            AM::A16_R | AM::D16_R => {
+            AM::A16Reg | AM::D16Reg => {
                 let lo = self.bus_read(self.regs.pc);
                 self.emu_cycles(1);
                 let hi = self.bus_read(self.regs.pc + 1);
@@ -219,9 +219,9 @@ impl Cpu {
 
                 self.mem_dest = combine_bytes!(lo, hi);
                 self.dest_is_mem = true;
-                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
             }
-            AM::D16 | AM::R_D16 => {
+            AM::D16 | AM::RegD16 => {
                 let lo = self.bus_read(self.regs.pc);
                 self.emu_cycles(1);
                 let hi = self.bus_read(self.regs.pc + 1);
@@ -230,20 +230,20 @@ impl Cpu {
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
-            AM::MR_D8 => {
+            AM::MemD8 => {
                 self.fetched_data = self.bus_read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
-                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
             }
-            AM::MR => {
-                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+            AM::Mem => {
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.reg_1)) as u16;
+                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r1)) as u16;
                 self.emu_cycles(1);
             }
-            AM::R_A16 => {
+            AM::RegA16 => {
                 let lo = self.bus_read(self.regs.pc);
                 self.emu_cycles(1);
                 let hi = self.bus_read(self.regs.pc + 1);
@@ -255,61 +255,61 @@ impl Cpu {
                 self.fetched_data = self.bus_read(addr) as u16;
                 self.emu_cycles(1);
             }
-            AM::MR_R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
-                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+            AM::MemReg => {
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
 
-                if self.cur_inst.reg_1 == RT::C {
+                if self.cur_inst.r1 == RT::C {
                     self.mem_dest |= 0xFF00;
                 }
             }
-            AM::R_MR => {
-                let mut address = self.read_reg(self.cur_inst.reg_2);
+            AM::RegMem => {
+                let mut address = self.read_reg(self.cur_inst.r2);
 
-                if self.cur_inst.reg_2 == RT::C {
+                if self.cur_inst.r2 == RT::C {
                     address |= 0xFF00;
                 }
 
                 self.fetched_data = self.bus_read(address) as u16;
                 self.emu_cycles(1);
             }
-            AM::R_HLI => {
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.reg_2)) as u16;
+            AM::RegHLI => {
+                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r2)) as u16;
                 self.emu_cycles(1);
                 self.set_reg(RT::HL, self.read_reg(RT::HL) + 1)
             }
-            AM::R_HLD => {
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.reg_2)) as u16;
+            AM::RegHLD => {
+                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r2)) as u16;
                 self.emu_cycles(1);
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1)
             }
-            AM::HLI_R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
-                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+            AM::HLIReg => {
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
 
                 self.dest_is_mem = true;
                 self.set_reg(RT::HL, self.read_reg(RT::HL) + 1);
             }
-            AM::HLD_R => {
-                self.fetched_data = self.read_reg(self.cur_inst.reg_2);
-                self.mem_dest = self.read_reg(self.cur_inst.reg_1);
+            AM::HLDReg => {
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
 
                 self.dest_is_mem = true;
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1);
             }
-            AM::R_A8 => {
+            AM::RegA8 => {
                 self.fetched_data = self.bus_read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             }
-            AM::A8_R => {
+            AM::A8Reg => {
                 self.mem_dest = self.bus_read(self.regs.pc) as u16 | 0xFF00;
                 self.dest_is_mem = true;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
             }
-            AM::HL_SPR => {
+            AM::HLRegsSP => {
                 self.fetched_data = self.bus_read(self.regs.pc) as u16;
                 self.emu_cycles(1);
                 self.regs.pc += 1;
@@ -497,7 +497,7 @@ impl Cpu {
 
         if self.dest_is_mem {
             //e.g.: LD (BC) A
-            if self.cur_inst.reg_2.is_16bit() {
+            if self.cur_inst.r2.is_16bit() {
                 self.emu_cycles(1);
                 self.bus_write16(self.mem_dest, self.fetched_data);
             } else {
@@ -509,30 +509,30 @@ impl Cpu {
             return;
         }
 
-        if self.cur_inst.mode == AM::HL_SPR {
-            let hflag = ((self.read_reg(self.cur_inst.reg_2) & 0xF) + (self.fetched_data & 0xF)
+        if self.cur_inst.mode == AM::HLRegsSP {
+            let hflag = ((self.read_reg(self.cur_inst.r2) & 0xF) + (self.fetched_data & 0xF)
                 >= 0x10) as i8;
-            let cflag = ((self.read_reg(self.cur_inst.reg_2) & 0xFF) + (self.fetched_data & 0xFF)
+            let cflag = ((self.read_reg(self.cur_inst.r2) & 0xFF) + (self.fetched_data & 0xFF)
                 >= 0x100) as i8;
 
             self.set_flags(0, 0, hflag, cflag);
             self.set_reg(
-                self.cur_inst.reg_1,
-                self.read_reg(self.cur_inst.reg_2) + self.fetched_data,
+                self.cur_inst.r1,
+                self.read_reg(self.cur_inst.r2) + self.fetched_data,
             );
 
             return;
         }
 
-        self.set_reg(self.cur_inst.reg_1, self.fetched_data);
+        self.set_reg(self.cur_inst.r1, self.fetched_data);
     }
 
     fn ldh_in(&mut self) {
         use RegisterType as RT;
-        match self.cur_inst.reg_1 {
+        match self.cur_inst.r1 {
             RT::A => {
                 self.set_reg(
-                    self.cur_inst.reg_1,
+                    self.cur_inst.r1,
                     self.bus_read(0xFF00 | self.fetched_data) as u16,
                 );
             }
@@ -607,20 +607,20 @@ impl Cpu {
         use AddressMode as AM;
         use RegisterType as RT;
 
-        let mut val = self.read_reg(self.cur_inst.reg_1) + 1;
+        let mut val = self.read_reg(self.cur_inst.r1) + 1;
 
-        if self.cur_inst.reg_1.is_16bit() {
+        if self.cur_inst.r1.is_16bit() {
             self.emu_cycles(1);
         }
 
-        if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
+        if self.cur_inst.r1 == RT::HL && self.cur_inst.mode == AM::Mem {
             let reg_hl = self.read_reg(RT::HL);
             val = (self.bus_read(reg_hl) + 1) as u16;
             val &= 0xFF;
             self.bus_write(reg_hl, val as u8);
         } else {
-            self.set_reg(self.cur_inst.reg_1, val);
-            val = self.read_reg(self.cur_inst.reg_1);
+            self.set_reg(self.cur_inst.r1, val);
+            val = self.read_reg(self.cur_inst.r1);
         }
 
         if (self.cur_opcode & 0x03) == 0x03 {
@@ -634,19 +634,19 @@ impl Cpu {
         use AddressMode as AM;
         use RegisterType as RT;
 
-        let mut val = self.read_reg(self.cur_inst.reg_1) - 1;
+        let mut val = self.read_reg(self.cur_inst.r1) - 1;
 
-        if self.cur_inst.reg_1.is_16bit() {
+        if self.cur_inst.r1.is_16bit() {
             self.emu_cycles(1);
         }
 
-        if self.cur_inst.reg_1 == RT::HL && self.cur_inst.mode == AM::MR {
+        if self.cur_inst.r1 == RT::HL && self.cur_inst.mode == AM::Mem {
             let reg_hl = self.read_reg(RT::HL);
             val = (self.bus_read(reg_hl) - 1) as u16;
             self.bus_write(reg_hl, val as u8);
         } else {
-            self.set_reg(self.cur_inst.reg_1, val);
-            val = self.read_reg(self.cur_inst.reg_1);
+            self.set_reg(self.cur_inst.r1, val);
+            val = self.read_reg(self.cur_inst.r1);
         }
 
         if (self.cur_opcode & 0x03) == 0x03 {
@@ -659,9 +659,9 @@ impl Cpu {
     fn add_in(&mut self) {
         use RegisterType as RT;
 
-        let reg_val: u16 = self.read_reg(self.cur_inst.reg_1);
-        let is_16bit: bool = self.cur_inst.reg_1.is_16bit();
-        let is_sp: bool = self.cur_inst.reg_1 == RT::SP;
+        let reg_val: u16 = self.read_reg(self.cur_inst.r1);
+        let is_16bit: bool = self.cur_inst.r1.is_16bit();
+        let is_sp: bool = self.cur_inst.r1 == RT::SP;
         let val: u32 = if is_sp {
             (reg_val + self.fetched_data as i8 as u16) as u32
         } else {
@@ -694,7 +694,7 @@ impl Cpu {
         };
 
         #[allow(clippy::identity_op)]
-        self.set_reg(self.cur_inst.reg_1, val as u16 & 0xFFFF);
+        self.set_reg(self.cur_inst.r1, val as u16 & 0xFFFF);
         self.set_flags(z as i8, 0, h as i8, c as i8);
     }
 
@@ -714,28 +714,28 @@ impl Cpu {
     }
 
     fn sub_in(&mut self) {
-        let reg_val = self.read_reg(self.cur_inst.reg_1);
+        let reg_val = self.read_reg(self.cur_inst.r1);
         let val = reg_val - self.fetched_data;
 
         let z: i32 = (val == 0) as i32;
         let h: i32 = (((reg_val & 0xF) as i32 - (self.fetched_data & 0xF) as i32) < 0) as i32;
         let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) < 0) as i32;
 
-        self.set_reg(self.cur_inst.reg_1, val);
+        self.set_reg(self.cur_inst.r1, val);
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
     fn sbc_in(&mut self) {
         let flag_c = self.flag_c();
         let val = (self.fetched_data + (flag_c as u16)) as u8;
-        let reg_val = self.read_reg(self.cur_inst.reg_1);
+        let reg_val = self.read_reg(self.cur_inst.r1);
 
         let z: i32 = (reg_val - val as u16 == 0) as i32;
         let h: i32 = ((reg_val as i32 & 0xF) - (self.fetched_data as i32 & 0xF) - (flag_c as i32)
             < 0) as i32;
         let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) - (flag_c as i32) < 0) as i32;
 
-        self.set_reg(self.cur_inst.reg_1, reg_val - val as u16);
+        self.set_reg(self.cur_inst.r1, reg_val - val as u16);
         self.set_flags(z as i8, 1, h as i8, c as i8);
     }
 
@@ -888,7 +888,7 @@ impl Cpu {
         use RegisterType as RT;
 
         let val = combine_bytes!(lo, hi);
-        let reg_1 = self.cur_inst.reg_1;
+        let reg_1 = self.cur_inst.r1;
 
         self.set_reg(reg_1, val);
 
@@ -898,11 +898,11 @@ impl Cpu {
     }
 
     fn push_in(&mut self) {
-        let hi = (self.read_reg(self.cur_inst.reg_1) >> 8) & 0xFF;
+        let hi = (self.read_reg(self.cur_inst.r1) >> 8) & 0xFF;
         self.emu_cycles(1);
         self.stack_push(hi as u8);
 
-        let lo = self.read_reg(self.cur_inst.reg_2) & 0xFF;
+        let lo = self.read_reg(self.cur_inst.r2) & 0xFF;
         self.emu_cycles(1);
         self.stack_push(lo as u8);
 
