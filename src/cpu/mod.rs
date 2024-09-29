@@ -647,7 +647,7 @@ impl Cpu {
 
     fn sub_in(&mut self) -> i32 {
         let reg_val = self.read_reg(self.cur_inst.r1);
-        let val = reg_val - self.fetched_data;
+        let val = reg_val.wrapping_sub(self.fetched_data);
 
         let z: i32 = (val == 0) as i32;
         let h: i32 = (((reg_val & 0xF) as i32 - (self.fetched_data & 0xF) as i32) < 0) as i32;

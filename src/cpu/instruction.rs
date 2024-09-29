@@ -1531,9 +1531,10 @@ impl Instruction {
                 r1: RT::DE,
                 ..Instruction::default()
             };
-            inst[0xF6] = Instruction {
+            inst[0xD6] = Instruction {
                 in_type: IT::Sub,
                 mode: AM::D8,
+                r1: RT::A,
                 ..Instruction::default()
             };
             inst[0xD7] = Instruction {
