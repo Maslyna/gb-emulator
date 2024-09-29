@@ -1,7 +1,7 @@
-mod instructions;
+mod instruction;
 
 use crate::{bus::Bus, emu::Emu};
-use instructions::*;
+use instruction::*;
 
 use std::cell::RefCell;
 use std::rc::Rc;

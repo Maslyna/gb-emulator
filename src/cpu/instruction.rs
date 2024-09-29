@@ -1477,6 +1477,11 @@ impl Instruction {
                 condition: CT::Z,
                 ..Instruction::default()
             };
+            inst[0xCB] = Instruction {
+                in_type: IT::Cb,
+                mode: AM::D8,
+                ..Instruction::default()
+            };
             inst[0xCC] = Instruction {
                 in_type: IT::Call,
                 mode: AM::D16,
