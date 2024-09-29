@@ -1,33 +1,12 @@
 mod instruction;
+mod regs;
 
 use crate::{bus::Bus, emu::Emu};
 use instruction::*;
-
-use std::cell::RefCell;
-use std::rc::Rc;
-
-type RcMut<T> = Rc<RefCell<T>>;
-type OpRcMut<T> = Option<RcMut<T>>;
-
-#[derive(Debug, Default)]
-pub struct Registers {
-    a: u8,
-    f: u8,
-    b: u8,
-    c: u8,
-    d: u8,
-    e: u8,
-    h: u8,
-    l: u8,
-    pc: u16,
-    sp: u16,
-}
+use regs::*;
 
 #[derive(Debug)]
 pub struct Cpu {
-    pub emu: OpRcMut<Emu>,
-    pub bus: OpRcMut<Bus>,
-
     pub regs: Registers,
     pub ie_reg: u8,
 
@@ -38,41 +17,13 @@ pub struct Cpu {
     cur_opcode: u8,
     cur_inst: Instruction,
 
-    halted: bool,
+    pub halted: bool,
     _stepping: bool,
 
-    int_master_enabled: bool,
+    _int_master_enabled: bool,
 }
 
 impl Cpu {
-    fn get_emu(&self) -> &RcMut<Emu> {
-        self.emu.as_ref().expect("NO EMU PROVIDED")
-    }
-
-    fn get_bus(&self) -> &RcMut<Bus> {
-        self.bus.as_ref().expect("NO BUS PROVIDED")
-    }
-
-    fn emu_cycles(&mut self, cycles: i32) {
-        self.get_emu().borrow_mut().cycle(cycles);
-    }
-
-    fn bus_read(&self, address: u16) -> u8 {
-        self.get_bus().borrow().read(address)
-    }
-
-    fn _bus_read16(&self, address: u16) -> u16 {
-        self.get_bus().borrow().read16(address)
-    }
-
-    fn bus_write(&self, address: u16, value: u8) {
-        self.get_bus().borrow_mut().write(address, value);
-    }
-
-    fn bus_write16(&self, address: u16, value: u16) {
-        self.get_bus().borrow_mut().write16(address, value);
-    }
-
     pub fn new() -> Self {
         Self {
             regs: Registers::new(),
@@ -84,9 +35,7 @@ impl Cpu {
             cur_inst: Instruction::default(),
             halted: false,
             _stepping: false,
-            int_master_enabled: false,
-            emu: None,
-            bus: None,
+            _int_master_enabled: false,
         }
     }
 
@@ -97,26 +46,16 @@ impl Cpu {
         cpu
     }
 
-    pub fn step(&mut self) -> bool {
-        if !self.halted {
-            self.fetch_instruction();
-            self.fetch_data();
-            self.execute();
-        }
-
-        return true;
-    }
-
-    fn execute(&mut self) {
-        let tick = self.get_emu().borrow().ticks;
+    pub fn execute(&mut self, bus: &mut Bus, emu: &mut Emu) -> i32 {
+        let tick = emu.ticks;
         debug!(
             "{tick:08} - PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
                 A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
             self.regs.pc,
             self.cur_inst.in_type,
             self.cur_opcode,
-            self.bus_read(self.regs.pc + 1),
-            self.bus_read(self.regs.pc + 2),
+            bus.read(self.regs.pc + 1, self),
+            bus.read(self.regs.pc + 2, self),
             self.regs.a,
             self.regs.b,
             self.regs.c,
@@ -128,18 +67,19 @@ impl Cpu {
         );
         debug!(
             "\tFLAGS: Z-{} C-{} H-{} N-{}",
-            self.flag_z() as i8,
-            self.flag_n() as i8,
-            self.flag_h() as i8,
-            self.flag_c() as i8
+            self.regs.flag_z() as i8,
+            self.regs.flag_n() as i8,
+            self.regs.flag_h() as i8,
+            self.regs.flag_c() as i8
         );
         use InstructionType as IT;
-        match self.cur_inst.in_type {
+        
+        return match self.cur_inst.in_type {
             IT::None => panic!("INVALID INSTRUCTION: {:?}", self.cur_inst),
             IT::Nop => self.nop_in(),
-            IT::Ld => self.ld_in(),
-            IT::Inc => self.inc_in(),
-            IT::Dec => self.dec_in(),
+            IT::Ld => self.ld_in(bus),
+            IT::Inc => self.inc_in(bus),
+            IT::Dec => self.dec_in(bus),
             IT::Rlca => todo!(),
             IT::Add => self.add_in(),
             IT::Rrca => todo!(),
@@ -158,19 +98,19 @@ impl Cpu {
             IT::Xor => self.xor_in(),
             IT::Or => self.or_in(),
             IT::Cp => self.cp_in(),
-            IT::Jr => self.jr_in(),
-            IT::Pop => self.pop_in(),
-            IT::Jp => self.jp_in(),
-            IT::Push => self.push_in(),
-            IT::Ret => self.ret_in(),
-            IT::Reti => self.reti_in(),
-            IT::Cb => self.cb_in(),
-            IT::Call => self.call_in(),
-            IT::Ldh => self.ldh_in(),
+            IT::Jr => self.jr_in(bus),
+            IT::Pop => self.pop_in(bus),
+            IT::Jp => self.jp_in(bus),
+            IT::Push => self.push_in(bus),
+            IT::Ret => self.ret_in(bus),
+            IT::Reti => self.reti_in(bus),
+            IT::Cb => self.cb_in(bus),
+            IT::Call => self.call_in(bus),
+            IT::Ldh => self.ldh_in(bus),
             IT::Jphl => todo!(),
             IT::Di => self.di_in(),
             IT::Ei => todo!(),
-            IT::Rst => self.rst_in(),
+            IT::Rst => self.rst_in(bus),
             IT::Err => todo!(),
             IT::Rlc => todo!(),
             IT::Rrc => todo!(),
@@ -183,18 +123,20 @@ impl Cpu {
             IT::Bit => todo!(),
             IT::Res => todo!(),
             IT::Set => todo!(),
-        };
+        }
     }
 
-    fn fetch_instruction(&mut self) {
-        self.cur_opcode = self.bus_read(self.regs.pc);
+    pub fn fetch_instruction(&mut self, bus: &Bus) {
+        self.cur_opcode = bus.read(self.regs.pc, self);
         self.cur_inst = Instruction::from(self.cur_opcode);
         self.regs.pc += 1;
     }
 
-    fn fetch_data(&mut self) {
+    pub fn fetch_data(&mut self, bus: &Bus) -> i32 {
         self.mem_dest = 0;
         self.dest_is_mem = false;
+
+        let mut emu_cycles = 0;
 
         use AddressMode as AM;
         use RegisterType as RT;
@@ -207,32 +149,32 @@ impl Cpu {
                 self.fetched_data = self.read_reg(self.cur_inst.r2);
             }
             AM::RegD8 => {
-                self.fetched_data = self.bus_read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.regs.pc, self) as u16;
+                emu_cycles += 1;
                 self.regs.pc += 1;
             }
             AM::A16Reg | AM::D16Reg => {
-                let lo = self.bus_read(self.regs.pc);
-                self.emu_cycles(1);
-                let hi = self.bus_read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                let lo = bus.read(self.regs.pc, self);
+                emu_cycles += 1;
+                let hi = bus.read(self.regs.pc + 1, self);
+                emu_cycles += 1;
 
                 self.mem_dest = combine_bytes!(lo, hi);
                 self.dest_is_mem = true;
                 self.fetched_data = self.read_reg(self.cur_inst.r2);
             }
             AM::D16 | AM::RegD16 => {
-                let lo = self.bus_read(self.regs.pc);
-                self.emu_cycles(1);
-                let hi = self.bus_read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                let lo = bus.read(self.regs.pc, self);
+                emu_cycles += 1;
+                let hi = bus.read(self.regs.pc + 1, self);
+                emu_cycles += 1;
 
                 self.fetched_data = combine_bytes!(lo, hi);
                 self.regs.pc += 2;
             }
             AM::MemD8 => {
-                self.fetched_data = self.bus_read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.regs.pc, self) as u16;
+                emu_cycles += 1;
                 self.regs.pc += 1;
                 self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
@@ -240,20 +182,20 @@ impl Cpu {
             AM::Mem => {
                 self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r1)) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r1), self) as u16;
+                emu_cycles += 1;
             }
             AM::RegA16 => {
-                let lo = self.bus_read(self.regs.pc);
-                self.emu_cycles(1);
-                let hi = self.bus_read(self.regs.pc + 1);
-                self.emu_cycles(1);
+                let lo = bus.read(self.regs.pc, self);
+                emu_cycles += 1;
+                let hi = bus.read(self.regs.pc + 1, self);
+                emu_cycles += 1;
 
                 let addr = combine_bytes!(lo, hi);
 
                 self.regs.pc += 2;
-                self.fetched_data = self.bus_read(addr) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(addr, self) as u16;
+                emu_cycles += 1;
             }
             AM::MemReg => {
                 self.fetched_data = self.read_reg(self.cur_inst.r2);
@@ -271,17 +213,17 @@ impl Cpu {
                     address |= 0xFF00;
                 }
 
-                self.fetched_data = self.bus_read(address) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(address, self) as u16;
+                emu_cycles += 1;
             }
             AM::RegHLI => {
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r2)) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r2), self) as u16;
+                emu_cycles += 1;
                 self.set_reg(RT::HL, self.read_reg(RT::HL) + 1)
             }
             AM::RegHLD => {
-                self.fetched_data = self.bus_read(self.read_reg(self.cur_inst.r2)) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r2), self) as u16;
+                emu_cycles += 1;
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1)
             }
             AM::HLIReg => {
@@ -299,49 +241,51 @@ impl Cpu {
                 self.set_reg(RT::HL, self.read_reg(RT::HL) - 1);
             }
             AM::RegA8 => {
-                self.fetched_data = self.bus_read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.regs.pc, self) as u16;
+                emu_cycles += 1;
                 self.regs.pc += 1;
             }
             AM::A8Reg => {
-                self.mem_dest = self.bus_read(self.regs.pc) as u16 | 0xFF00;
+                self.mem_dest = bus.read(self.regs.pc, self) as u16 | 0xFF00;
                 self.dest_is_mem = true;
-                self.emu_cycles(1);
+                emu_cycles += 1;
                 self.regs.pc += 1;
             }
             AM::HLRegsSP => {
-                self.fetched_data = self.bus_read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.regs.pc, self) as u16;
+                emu_cycles += 1;
                 self.regs.pc += 1;
             }
             AM::D8 => {
-                self.fetched_data = self.bus_read(self.regs.pc) as u16;
-                self.emu_cycles(1);
+                self.fetched_data = bus.read(self.regs.pc, self) as u16;
+                emu_cycles += 1;
                 self.regs.pc += 1;
             } //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
+
+        return emu_cycles;
     }
 
-    fn stack_push(&mut self, data: u8) {
+    fn stack_push(&mut self, data: u8, bus: &mut Bus) {
         self.regs.sp -= 1;
-        self.bus_write(self.regs.sp, data);
+        bus.write(self.regs.sp, data, self);
     }
 
-    fn stack_push16(&mut self, data: u16) {
-        self.stack_push(((data >> 8) & 0xFF) as u8);
-        self.stack_push((data & 0xFF) as u8);
+    fn stack_push16(&mut self, data: u16, bus: &mut Bus) {
+        self.stack_push(((data >> 8) & 0xFF) as u8, bus);
+        self.stack_push((data & 0xFF) as u8, bus);
     }
 
-    fn stack_pop(&mut self) -> u8 {
-        let res = self.bus_read(self.regs.sp);
+    fn stack_pop(&mut self, bus: &Bus) -> u8 {
+        let res = bus.read(self.regs.sp, self);
         self.regs.sp += 1;
 
         res
     }
 
-    fn _stack_pop16(&mut self) -> u16 {
-        let hi = self.stack_pop();
-        let lo = self.stack_pop();
+    fn _stack_pop16(&mut self, bus: &mut Bus) -> u16 {
+        let hi = self.stack_pop(bus);
+        let lo = self.stack_pop(bus);
 
         combine_bytes!(hi, lo)
     }
@@ -367,7 +311,7 @@ impl Cpu {
         };
     }
 
-    fn read_reg8(&self, reg_type: RegisterType) -> u8 {
+    fn read_reg8(&self, reg_type: RegisterType, bus: &mut Bus) -> u8 {
         use RegisterType as RT;
         match reg_type {
             RT::None => 0,
@@ -379,7 +323,7 @@ impl Cpu {
             RT::E => self.regs.e,
             RT::H => self.regs.h,
             RT::L => self.regs.l,
-            RT::HL => self.bus_read(self.read_reg(reg_type)),
+            RT::HL => bus.read(self.read_reg(reg_type), self),
             _ => panic!("INVALID REG8: {reg_type:?}"),
         }
     }
@@ -421,7 +365,7 @@ impl Cpu {
         };
     }
 
-    fn set_reg8(&mut self, reg_type: RegisterType, value: u8) {
+    fn set_reg8(&mut self, reg_type: RegisterType, value: u8, bus: &mut Bus) {
         use RegisterType as RT;
 
         match reg_type {
@@ -434,7 +378,7 @@ impl Cpu {
             RT::H => self.regs.h = value, // value & 0xFF,
             RT::L => self.regs.l = value, // value & 0xFF,
             RT::HL => {
-                self.bus_write(self.read_reg(RT::HL), value);
+                bus.write(self.read_reg(RT::HL), value, self);
             }
             _ => panic!("SET REG 8: INVALID REGISTER {reg_type:?}"),
         };
@@ -442,222 +386,206 @@ impl Cpu {
 
     fn _process() {}
 
-    fn set_flags(&mut self, z: i8, n: i8, h: i8, c: i8) {
-        if z >= 0 {
-            set_bit!(self.regs.f, 7, z != 0);
-        }
-        if n >= 0 {
-            set_bit!(self.regs.f, 6, n != 0);
-        }
-        if h >= 0 {
-            set_bit!(self.regs.f, 5, h != 0);
-        }
-        if c >= 0 {
-            set_bit!(self.regs.f, 4, c != 0);
-        }
-    }
-
-    #[inline(always)]
-    fn flag_z(&self) -> bool {
-        bit!(self.regs.f, 7)
-    }
-
-    #[inline(always)]
-    fn flag_n(&self) -> bool {
-        bit!(self.regs.f, 6)
-    }
-
-    #[inline(always)]
-    fn flag_h(&self) -> bool {
-        bit!(self.regs.f, 5)
-    }
-
-    #[inline(always)]
-    fn flag_c(&self) -> bool {
-        bit!(self.regs.f, 4)
-    }
-
     #[inline(always)]
     fn check_cond(&self) -> bool {
         use ConditionType::*;
         match self.cur_inst.condition {
             None => true,
-            NZ => !self.flag_z(),
-            Z => self.flag_z(),
-            NC => !self.flag_c(),
-            C => self.flag_c(),
+            NZ => !self.regs.flag_z(),
+            Z => self.regs.flag_z(),
+            NC => !self.regs.flag_c(),
+            C => self.regs.flag_c(),
         }
     }
 
     #[inline(always)]
-    fn nop_in(&self) {}
+    fn nop_in(&self) -> i32 {0}
 
-    fn ld_in(&mut self) {
+    fn ld_in(&mut self, bus: &mut Bus) -> i32 {
         use AddressMode as AM;
-
+        let mut emu_cycles = 0;
         if self.dest_is_mem {
             //e.g.: LD (BC) A
             if self.cur_inst.r2.is_16bit() {
-                self.emu_cycles(1);
-                self.bus_write16(self.mem_dest, self.fetched_data);
+                emu_cycles += 1;
+                bus.write16(self.mem_dest, self.fetched_data, self);
             } else {
-                self.bus_write(self.mem_dest, self.fetched_data as u8);
+                bus.write(self.mem_dest, self.fetched_data as u8, self);
             }
 
-            self.emu_cycles(1);
+            emu_cycles += 1;
 
-            return;
+            return emu_cycles;
         }
 
         if self.cur_inst.mode == AM::HLRegsSP {
-            let hflag = ((self.read_reg(self.cur_inst.r2) & 0xF) + (self.fetched_data & 0xF)
-                >= 0x10) as i8;
+            let hflag =
+                ((self.read_reg(self.cur_inst.r2) & 0xF) + (self.fetched_data & 0xF) >= 0x10) as i8;
             let cflag = ((self.read_reg(self.cur_inst.r2) & 0xFF) + (self.fetched_data & 0xFF)
                 >= 0x100) as i8;
 
-            self.set_flags(0, 0, hflag, cflag);
+            self.regs.set_flags(0, 0, hflag, cflag);
             self.set_reg(
                 self.cur_inst.r1,
                 self.read_reg(self.cur_inst.r2) + self.fetched_data,
             );
 
-            return;
+            return emu_cycles;
         }
 
         self.set_reg(self.cur_inst.r1, self.fetched_data);
+        return emu_cycles;
     }
 
-    fn ldh_in(&mut self) {
+    fn ldh_in(&mut self, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
+
         use RegisterType as RT;
         match self.cur_inst.r1 {
             RT::A => {
                 self.set_reg(
                     self.cur_inst.r1,
-                    self.bus_read(0xFF00 | self.fetched_data) as u16,
+                    bus.read(0xFF00 | self.fetched_data, self) as u16,
                 );
             }
             _ => {
-                self.bus_write(0xFF00 | self.fetched_data, self.regs.a);
+                bus.write(0xFF00 | self.fetched_data, self.regs.a, self);
             }
         }
-        self.emu_cycles(1);
+        emu_cycles += 1;
+        return emu_cycles;
     }
 
-    fn goto(&mut self, address: u16, pushpc: bool) {
+    fn goto(&mut self, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
         if self.check_cond() {
             if pushpc {
-                self.stack_push16(self.regs.pc);
-                self.emu_cycles(2);
+                self.stack_push16(self.regs.pc, bus);
+                emu_cycles += 2;
             }
 
             self.regs.pc = address;
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
+        return emu_cycles;
     }
 
     #[inline(always)]
-    fn jp_in(&mut self) {
-        self.goto(self.fetched_data, false);
+    fn jp_in(&mut self, bus: &mut Bus) -> i32 {
+        self.goto(self.fetched_data, false, bus)
     }
 
     #[inline(always)]
-    fn call_in(&mut self) {
-        self.goto(self.fetched_data, true);
+    fn call_in(&mut self, bus: &mut Bus) -> i32 {
+        self.goto(self.fetched_data, true, bus)
     }
 
     #[inline(always)]
-    fn rst_in(&mut self) {
-        self.goto(self.cur_inst.param as u16, true);
+    fn rst_in(&mut self, bus: &mut Bus) -> i32 {
+        self.goto(self.cur_inst.param as u16, true, bus)
     }
 
     #[inline(always)]
-    fn jr_in(&mut self) {
+    fn jr_in(&mut self, bus: &mut Bus) -> i32 {
         let r: i8 = (self.fetched_data & 0xFF) as i8;
         let addr: u16 = (self.regs.pc as i16 + r as i16) as u16;
-        self.goto(addr, false);
+
+        self.goto(addr, false, bus)
     }
 
-    fn ret_in(&mut self) {
+    fn ret_in(&mut self, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
+
         use ConditionType as CT;
 
         if self.cur_inst.condition != CT::None {
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
 
         if self.check_cond() {
-            let lo = self.stack_pop();
-            self.emu_cycles(1);
-            let hi = self.stack_pop();
-            self.emu_cycles(1);
+            let lo = self.stack_pop(bus);
+            emu_cycles += 1;
+            let hi = self.stack_pop(bus);
+            emu_cycles += 1;
 
             let value = combine_bytes!(lo, hi);
             self.regs.pc = value;
 
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
+        return emu_cycles;
     }
 
     #[inline(always)]
-    fn reti_in(&mut self) {
-        self.int_master_enabled = true;
-        self.ret_in();
+    fn reti_in(&mut self, bus: &mut Bus) -> i32 {
+        self._int_master_enabled = true;
+        self.ret_in(bus)
     }
 
-    fn inc_in(&mut self) {
+    fn inc_in(&mut self, bus: &mut Bus) -> i32 {
         use AddressMode as AM;
         use RegisterType as RT;
 
+        let mut emu_cycles = 0;
         let mut val = self.read_reg(self.cur_inst.r1) + 1;
 
         if self.cur_inst.r1.is_16bit() {
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
 
         if self.cur_inst.r1 == RT::HL && self.cur_inst.mode == AM::Mem {
             let reg_hl = self.read_reg(RT::HL);
-            val = (self.bus_read(reg_hl) + 1) as u16;
+            val = (bus.read(reg_hl, self) + 1) as u16;
             val &= 0xFF;
-            self.bus_write(reg_hl, val as u8);
+            bus.write(reg_hl, val as u8, self);
         } else {
             self.set_reg(self.cur_inst.r1, val);
             val = self.read_reg(self.cur_inst.r1);
         }
 
         if (self.cur_opcode & 0x03) == 0x03 {
-            return;
+            return emu_cycles;
         }
 
-        self.set_flags((val == 0) as i8, 0, ((val & 0xFF) == 0) as i8, -1);
+        self.regs
+            .set_flags((val == 0) as i8, 0, ((val & 0xFF) == 0) as i8, -1);
+
+        emu_cycles
     }
 
-    fn dec_in(&mut self) {
+    fn dec_in(&mut self, bus: &mut Bus) -> i32 {
         use AddressMode as AM;
         use RegisterType as RT;
-
+        let mut emu_cycles = 0;
         let mut val = self.read_reg(self.cur_inst.r1) - 1;
 
         if self.cur_inst.r1.is_16bit() {
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
 
         if self.cur_inst.r1 == RT::HL && self.cur_inst.mode == AM::Mem {
             let reg_hl = self.read_reg(RT::HL);
-            val = (self.bus_read(reg_hl) - 1) as u16;
-            self.bus_write(reg_hl, val as u8);
+            val = (bus.read(reg_hl, self) - 1) as u16;
+            bus.write(reg_hl, val as u8, self);
         } else {
             self.set_reg(self.cur_inst.r1, val);
             val = self.read_reg(self.cur_inst.r1);
         }
 
         if (self.cur_opcode & 0x03) == 0x03 {
-            return;
+            return emu_cycles;
         }
 
-        self.set_flags((val == 0) as i8, 1, ((val & 0x0F) == 0x0F) as i8, -1);
+        self.regs
+            .set_flags((val == 0) as i8, 1, ((val & 0x0F) == 0x0F) as i8, -1);
+
+        emu_cycles
     }
 
-    fn add_in(&mut self) {
+    fn add_in(&mut self) -> i32 {
         use RegisterType as RT;
+
+        let mut emu_cycles = 0;
 
         let reg_val: u16 = self.read_reg(self.cur_inst.r1);
         let is_16bit: bool = self.cur_inst.r1.is_16bit();
@@ -669,7 +597,7 @@ impl Cpu {
         };
 
         if is_16bit {
-            self.emu_cycles(1);
+            emu_cycles += 1;
         }
 
         let (z, h, c) = if is_sp {
@@ -695,25 +623,29 @@ impl Cpu {
 
         #[allow(clippy::identity_op)]
         self.set_reg(self.cur_inst.r1, val as u16 & 0xFFFF);
-        self.set_flags(z as i8, 0, h as i8, c as i8);
+        self.regs.set_flags(z as i8, 0, h as i8, c as i8);
+
+        emu_cycles
     }
 
-    fn adc_in(&mut self) {
+    fn adc_in(&mut self) -> i32 {
         let u = self.fetched_data;
         let a = self.regs.a as u16;
-        let c = self.flag_c() as u16;
+        let c = self.regs.flag_c() as u16;
 
         self.regs.a = ((a + u + c) & 0xFF) as u8;
 
-        self.set_flags(
+        self.regs.set_flags(
             (self.regs.a == 0) as i8,
             0,
             (a & 0xF) as i8 + (u & 0xF) as i8 + (c > 0xF) as i8,
             (a + u + c > 0xFF) as i8,
-        )
+        );
+
+        0
     }
 
-    fn sub_in(&mut self) {
+    fn sub_in(&mut self) -> i32 {
         let reg_val = self.read_reg(self.cur_inst.r1);
         let val = reg_val - self.fetched_data;
 
@@ -722,11 +654,13 @@ impl Cpu {
         let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) < 0) as i32;
 
         self.set_reg(self.cur_inst.r1, val);
-        self.set_flags(z as i8, 1, h as i8, c as i8);
+        self.regs.set_flags(z as i8, 1, h as i8, c as i8);
+
+        0
     }
 
-    fn sbc_in(&mut self) {
-        let flag_c = self.flag_c();
+    fn sbc_in(&mut self) -> i32 {
+        let flag_c = self.regs.flag_c();
         let val = (self.fetched_data + (flag_c as u16)) as u8;
         let reg_val = self.read_reg(self.cur_inst.r1);
 
@@ -736,62 +670,71 @@ impl Cpu {
         let c: i32 = ((reg_val as i32) - (self.fetched_data as i32) - (flag_c as i32) < 0) as i32;
 
         self.set_reg(self.cur_inst.r1, reg_val - val as u16);
-        self.set_flags(z as i8, 1, h as i8, c as i8);
+        self.regs.set_flags(z as i8, 1, h as i8, c as i8);
+
+        0
     }
 
-    fn and_in(&mut self) {
+    fn and_in(&mut self) -> i32 {
         self.regs.a &= self.fetched_data as u8;
-        self.set_flags((self.regs.a == 0) as i8, 0, 1, 0);
+        self.regs.set_flags((self.regs.a == 0) as i8, 0, 1, 0);
+
+        0
     }
 
-    fn or_in(&mut self) {
+    fn or_in(&mut self) -> i32 {
         self.regs.a |= self.fetched_data as u8;
-        self.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
+        self.regs.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
+
+        0
     }
 
-    fn cp_in(&mut self) {
+    fn cp_in(&mut self) -> i32 {
         let z = ((self.regs.a as i32 - self.fetched_data as i32) == 0) as i8;
         let h = (((self.regs.a as i32 & 0x0F) - (self.fetched_data as i32 & 0x0F)) < 0) as i8;
 
-        self.set_flags(z, 1, h, (z < 0) as i8);
+        self.regs.set_flags(z, 1, h, (z < 0) as i8);
+
+        0
     }
 
-    fn cb_in(&mut self) {
+    fn cb_in(&mut self, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
         let operation = self.fetched_data;
         let reg = RegisterType::from(operation as u8 & 0b111);
-        let mut reg_val = self.read_reg8(reg);
+        let mut reg_val = self.read_reg8(reg, bus);
         let bit = (operation as u8 >> 3) & 0b111;
         let bit_op = (operation as u8 >> 6) & 0b11;
 
-        self.emu_cycles(1);
+        emu_cycles += 1;
 
         use RegisterType as RT;
         if reg == RT::HL {
-            self.emu_cycles(2);
+            emu_cycles += 2;
         }
 
         match bit_op {
             1 => {
                 // BIT
                 let flag_z = !(reg_val & (1 << bit));
-                self.set_flags(flag_z as i8, 0, 1, -1);
-                return;
+                self.regs.set_flags(flag_z as i8, 0, 1, -1);
+                return emu_cycles;
             }
             2 => {
                 // RST
                 reg_val &= !(1 << bit);
-                self.set_reg8(reg, reg_val);
+                self.set_reg8(reg, reg_val, bus);
             }
             3 => {
                 // SET
                 reg_val |= !(1 << bit);
-                self.set_reg8(reg, reg_val);
-                return;
+                self.set_reg8(reg, reg_val, bus);
+                return emu_cycles;
             }
             _ => {}
         };
 
-        let flag_c = self.flag_c();
+        let flag_c = self.regs.flag_c();
 
         match bit {
             0 => {
@@ -804,9 +747,9 @@ impl Cpu {
                     set_c = true;
                 }
 
-                self.set_reg8(reg, result);
-                self.set_flags((result == 0) as i8, 0, 0, set_c as i8);
-                return;
+                self.set_reg8(reg, result, bus);
+                self.regs.set_flags((result == 0) as i8, 0, 0, set_c as i8);
+                return emu_cycles;
             }
             1 => {
                 // RRC
@@ -814,9 +757,9 @@ impl Cpu {
                 reg_val >>= 1;
                 reg_val |= old << 7;
 
-                self.set_reg8(reg, reg_val);
-                self.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
-                return;
+                self.set_reg8(reg, reg_val, bus);
+                self.regs.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
+                return emu_cycles;
             }
             2 => {
                 // RL
@@ -824,9 +767,10 @@ impl Cpu {
                 reg_val <<= 1;
                 reg_val |= flag_c as u8;
 
-                self.set_reg8(reg, reg_val);
-                self.set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
-                return;
+                self.set_reg8(reg, reg_val, bus);
+                self.regs
+                    .set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
+                return emu_cycles;
             }
             3 => {
                 // RR
@@ -834,56 +778,62 @@ impl Cpu {
                 reg_val >>= 1;
                 reg_val |= (flag_c as u8) << 7;
 
-                self.set_reg8(reg, reg_val);
-                self.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
+                self.set_reg8(reg, reg_val, bus);
+                self.regs.set_flags((!reg_val) as i8, 0, 0, (old & 1) as i8);
             }
             4 => {
                 // SLA
                 let old = reg_val;
                 reg_val <<= 1;
 
-                self.set_reg8(reg, reg_val);
-                self.set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
-                return;
+                self.set_reg8(reg, reg_val, bus);
+                self.regs
+                    .set_flags((!reg_val) as i8, 0, 0, !!(old & 0x80) as i8);
+                return emu_cycles;
             }
             5 => {
                 // SRA
                 let u = (reg_val as i8 >> 1) as u8;
 
-                self.set_reg8(reg, u);
-                self.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
-                return;
+                self.set_reg8(reg, u, bus);
+                self.regs.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
+                return emu_cycles;
             }
             6 => {
                 // SWAP
                 reg_val = ((reg_val & 0xF0) >> 4) | ((reg_val & 0xF) << 4);
 
-                self.set_reg8(reg, reg_val);
-                self.set_flags((reg_val == 0) as i8, 0, 0, 0);
-                return;
+                self.set_reg8(reg, reg_val, bus);
+                self.regs.set_flags((reg_val == 0) as i8, 0, 0, 0);
+                return emu_cycles;
             }
             7 => {
                 // SRL
                 let u = reg_val >> 1;
 
-                self.set_reg8(reg, u);
-                self.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
-                return;
+                self.set_reg8(reg, u, bus);
+                self.regs.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
+                return emu_cycles;
             }
             _ => panic!("INVALID CB INSTRUCTION: {operation:02X}"),
         };
+
+        emu_cycles
     }
 
-    fn xor_in(&mut self) {
+    fn xor_in(&mut self) -> i32 {
         self.regs.a ^= (self.fetched_data & 0xFF) as u8;
-        self.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
+        self.regs.set_flags((self.regs.a == 0) as i8, 0, 0, 0);
+
+        0
     }
 
-    fn pop_in(&mut self) {
-        let lo = self.stack_pop();
-        self.emu_cycles(1);
-        let hi = self.stack_pop();
-        self.emu_cycles(1);
+    fn pop_in(&mut self, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
+        let lo = self.stack_pop(bus);
+        emu_cycles += 1;
+        let hi = self.stack_pop(bus);
+        emu_cycles += 1;
 
         use RegisterType as RT;
 
@@ -895,39 +845,29 @@ impl Cpu {
         if reg_1 == RT::AF {
             self.set_reg(reg_1, val & 0xFFF0)
         };
+
+        emu_cycles
     }
 
-    fn push_in(&mut self) {
+    fn push_in(&mut self, bus: &mut Bus) -> i32 {
+        let mut emu_cycles = 0;
         let hi = (self.read_reg(self.cur_inst.r1) >> 8) & 0xFF;
-        self.emu_cycles(1);
-        self.stack_push(hi as u8);
+        emu_cycles += 1;
+        self.stack_push(hi as u8, bus);
 
         let lo = self.read_reg(self.cur_inst.r2) & 0xFF;
-        self.emu_cycles(1);
-        self.stack_push(lo as u8);
+        emu_cycles += 1;
+        self.stack_push(lo as u8, bus);
 
-        self.emu_cycles(1);
+        emu_cycles += 1;
+
+        emu_cycles
     }
 
     #[inline(always)]
-    fn di_in(&mut self) {
-        self.int_master_enabled = false;
-    }
-}
-
-impl Registers {
-    pub const fn new() -> Self {
-        Self {
-            a: 0,
-            f: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-            e: 0,
-            h: 0,
-            l: 0,
-            pc: 0,
-            sp: 0,
-        }
+    fn di_in(&mut self) -> i32 {
+        self._int_master_enabled = false;
+        
+        0
     }
 }

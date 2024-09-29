@@ -16,22 +16,3 @@ impl Emu {
 
     pub fn cycle(&mut self, _cycles: i32) {}
 }
-
-#[derive(Debug)]
-pub enum EmuError {
-    CpuErr(String),
-}
-
-impl std::fmt::Display for EmuError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EmuError::CpuErr(msg) => write!(f, "CPU encountered an error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for EmuError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        None
-    }
-}
