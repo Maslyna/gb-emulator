@@ -15,8 +15,7 @@ pub enum CartrigeError {
 
 #[derive(Debug)]
 pub struct Rom {
-    rom_data: Box<[u8]>,
-    rom_header: Header,
+    rom_data: Box<[u8]>
 }
 
 #[derive(Debug)]
@@ -38,7 +37,7 @@ pub struct Header {
 }
 
 impl Rom {
-    pub fn load(path: String) -> Result<Rom, CartrigeError> {
+    pub fn load(path: String) -> Result<(Rom, Header), CartrigeError> {
         let mut file: File = File::open(path).map_err(CartrigeError::IoError)?;
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
@@ -46,11 +45,10 @@ impl Rom {
 
         let rom = Rom {
             rom_data: buffer.into_boxed_slice(),
-            rom_header: header,
         };
 
-        return match rom.is_checksum_valid() {
-            true => Ok(rom),
+        return match rom.is_checksum_valid(&header) {
+            true => Ok((rom, header)),
             false => Err(CartrigeError::InvalidFile("Invalid checksum")),
         };
     }
@@ -71,8 +69,8 @@ impl Rom {
         return x as u8;
     }
 
-    fn is_checksum_valid(&self) -> bool {
-        return self.calculate_cecksum() == self.rom_header.checksum;
+    fn is_checksum_valid(&self, header: &Header) -> bool {
+        return self.calculate_cecksum() == header.checksum;
     }
 }
 
@@ -111,11 +109,7 @@ impl Header {
 }
 
 impl std::fmt::Display for Rom {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "ROM:")?;
-        writeln!(f, "Size: {} KB", 32 << self.rom_header.rom_size)?;
-        writeln!(f, "Checksum: {:02X}", self.calculate_cecksum())?;
-        writeln!(f, "Header: [\n{}]", self.rom_header)?;
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Ok(())
     }
 }

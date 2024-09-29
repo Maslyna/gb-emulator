@@ -50,8 +50,8 @@ fn run_emu(cpu: RcMut<Cpu>, emu: RcMut<Emu>) -> Result<(), Box<dyn Error>> {
 }
 
 fn create_emu(path: String) -> Result<Emulator, Box<dyn Error>> {
-    let rom = Rom::load(path)?;
-    println!("{}", rom);
+    let (rom, header) = Rom::load(path)?;
+    println!("{header}");
 
     let cpu = Rc::new(RefCell::new(Cpu::with_pc(0x100)));
     let bus = Rc::new(RefCell::new(Bus::new(rom)));
