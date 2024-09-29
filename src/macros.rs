@@ -31,7 +31,7 @@ macro_rules! reverse_u16 {
 }
 
 #[macro_export]
-macro_rules! combine_bytes {
+macro_rules! bytes_to_word {
     ($lo:expr, $hi:expr) => {
         ($lo as u16) | (($hi as u16) << 8)
     };

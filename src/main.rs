@@ -2,13 +2,13 @@
 
 #[macro_use]
 mod macros;
-mod bus;
+mod memory;
 mod cartridge;
 mod cpu;
 mod emu;
 mod ram;
 
-use bus::Bus;
+use memory::Bus;
 use cartridge::rom::Rom;
 use cpu::Cpu;
 use emu::Emu;
@@ -26,14 +26,7 @@ fn run_emu(mut cpu: Cpu, mut bus: Bus, mut emu: Emu) -> Result<(), Box<dyn Error
             continue;
         }
 
-        if cpu.halted {
-            panic!("CPU EXEC FAILED");
-        }
-
-        cpu.fetch_instruction(&bus);
-        let cycles = cpu.fetch_data(&bus);
-        emu.cycle(cycles);
-        let cycles = cpu.execute(&mut bus, &mut emu);
+        let cycles = cpu.step(&mut emu, &mut bus);
         emu.cycle(cycles);
 
         emu.ticks += 1;

@@ -12,24 +12,31 @@
 // 0xFF00 - 0xFF7F : I/O Registers
 // 0xFF80 - 0xFFFE : Zero Page
 
+mod interrupts;
+
+use interrupts::*;
+
 use crate::cartridge::rom::Rom;
-use crate::cpu::Cpu;
 use crate::ram::Ram;
 
 #[derive(Debug)]
 pub struct Bus {
+    pub interrupts: Interrupt,
+    
     rom: Rom,
     ram: Ram,
 }
 
 impl Bus {
     pub const fn new(rom: Rom) -> Self {
-        Self {            rom,
+        Self {            
+            rom,
             ram: Ram::new(),
+            interrupts: Interrupt::new(),
         }
     }
 
-    pub fn read(&self, address: u16, cpu: &Cpu) -> u8 {
+    pub fn read(&self, address: u16) -> u8 {
         match address {
             // ROM DATA
             ..0x8000 => self.rom.read(address),
@@ -48,19 +55,19 @@ impl Bus {
             // IO Registers
             0xFF00..0xFF80 => todo!("UNSUPPORTED BUS READ {address:04X}"),
             // CPU ENABLED REGISTERS
-            0xFFFF => cpu.ie_reg,
+            interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             _ => self.ram.hram_read(address),
         }
     }
 
-    pub fn read16(&self, address: u16, cpu: &Cpu) -> u16 {
-        let lo: u8 = self.read(address, cpu);
-        let hi: u8 = self.read(address, cpu);
+    pub fn read16(&self, address: u16) -> u16 {
+        let lo: u8 = self.read(address);
+        let hi: u8 = self.read(address);
 
-        return combine_bytes!(lo, hi);
+        return bytes_to_word!(lo, hi);
     }
 
-    pub fn write(&mut self, address: u16, value: u8, cpu: &mut Cpu) {
+    pub fn write(&mut self, address: u16, value: u8) {
         debug!("Write in bus: {address:04X}, value: {value:02X}");
         match address {
             // ROM DATA
@@ -80,13 +87,13 @@ impl Bus {
             // IO Registers
             0xFF00..0xFF80 => todo!("UNSUPPORTED BUS WRITE {address:04X}"),
             // CPU SET ENABLE REGISTER
-            0xFFFF => cpu.ie_reg = value,
+            0xFFFF => self.interrupts.enabled = value,
             _ => self.ram.hram_write(address, value),
         }
     }
 
-    pub fn write16(&mut self, address: u16, value: u16, cpu: &mut Cpu) {
-        self.write(address + 1, ((value >> 8) & 0xFF) as u8, cpu);
-        self.write(address, (value & 0xFF) as u8, cpu);
+    pub fn write16(&mut self, address: u16, value: u16) {
+        self.write(address + 1, ((value >> 8) & 0xFF) as u8);
+        self.write(address, (value & 0xFF) as u8);
     }
 }
