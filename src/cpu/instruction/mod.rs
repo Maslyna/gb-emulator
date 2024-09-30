@@ -2,6 +2,10 @@
 #![allow(clippy::upper_case_acronyms)]
 #![allow(dead_code)]
 
+mod process;
+
+pub use process::process_instruction;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instruction {
     pub in_type: InstructionType,
