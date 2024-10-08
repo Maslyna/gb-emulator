@@ -4,7 +4,7 @@
 
 mod process;
 
-pub use process::process_instruction;
+pub use process::process;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instruction {
@@ -19,27 +19,27 @@ pub struct Instruction {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum AddressMode {
-    Imp,        // Implied addressing mode
-    RegD16,     // Register + 16-bit data
-    RegReg,     // Register to register
-    MemReg,     // Memory to register
-    Reg,        // Single register
-    RegD8,      // Register + 8-bit data
-    RegMem,     // Register to memory
-    RegHLI,     // Register + increment HL
-    RegHLD,     // Register + decrement HL
-    HLIReg,     // Increment HL + register
-    HLDReg,     // Decrement HL + register
-    RegA8,      // Register + 8-bit address
-    A8Reg,      // 8-bit address + register
-    HLRegsSP,   // HL + stack pointer register
-    D16,        // 16-bit data
-    D8,         // 8-bit data
-    D16Reg,     // 16-bit data + register
-    MemD8,      // Memory + 8-bit data
-    Mem,        // Memory access
-    A16Reg,     // 16-bit address + register
-    RegA16,     // Register + 16-bit address
+    Imp,      // Implied addressing mode
+    RegD16,   // Register + 16-bit data
+    RegReg,   // Register to register
+    MemReg,   // Memory to register
+    Reg,      // Single register
+    RegD8,    // Register + 8-bit data
+    RegMem,   // Register to memory
+    RegHLI,   // Register + increment HL
+    RegHLD,   // Register + decrement HL
+    HLIReg,   // Increment HL + register
+    HLDReg,   // Decrement HL + register
+    RegA8,    // Register + 8-bit address
+    A8Reg,    // 8-bit address + register
+    HLRegsSP, // HL + stack pointer register
+    D16,      // 16-bit data
+    D8,       // 8-bit data
+    D16Reg,   // 16-bit data + register
+    MemD8,    // Memory + 8-bit data
+    Mem,      // Memory access
+    A16Reg,   // 16-bit address + register
+    RegA16,   // Register + 16-bit address
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -191,6 +191,10 @@ impl Instruction {
                 r1: RT::B,
                 ..Instruction::default()
             };
+            inst[0x07] = Instruction {
+                in_type: IT::Rlca,
+                ..Instruction::default()
+            };
             inst[0x08] = Instruction {
                 in_type: IT::Ld,
                 mode: AM::A16Reg,
@@ -236,9 +240,12 @@ impl Instruction {
                 ..Instruction::default()
             };
         }
-
         //0x1X
         {
+            inst[0x10] = Instruction {
+                in_type: IT::Stop,
+                ..Instruction::default()
+            };
             inst[0x11] = Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegD16,
@@ -274,6 +281,10 @@ impl Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::D,
+                ..Instruction::default()
+            };
+            inst[0x17] = Instruction {
+                in_type: IT::Rla,
                 ..Instruction::default()
             };
             inst[0x18] = Instruction {
@@ -317,6 +328,10 @@ impl Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::E,
+                ..Instruction::default()
+            };
+            inst[0x1F] = Instruction {
+                in_type: IT::Rra,
                 ..Instruction::default()
             };
         }
@@ -365,6 +380,10 @@ impl Instruction {
                 r1: RT::H,
                 ..Instruction::default()
             };
+            inst[0x27] = Instruction {
+                in_type: IT::Daa,
+                ..Instruction::default()
+            };
             inst[0x28] = Instruction {
                 in_type: IT::Jr,
                 mode: AM::D8,
@@ -407,6 +426,10 @@ impl Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::L,
+                ..Instruction::default()
+            };
+            inst[0x2F] = Instruction {
+                in_type: IT::Cpl,
                 ..Instruction::default()
             };
         }
@@ -455,6 +478,10 @@ impl Instruction {
                 r1: RT::HL,
                 ..Instruction::default()
             };
+            inst[0x37] = Instruction {
+                in_type: IT::Scf,
+                ..Instruction::default()
+            };
             inst[0x38] = Instruction {
                 in_type: IT::Jr,
                 mode: AM::D8,
@@ -497,6 +524,10 @@ impl Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::A,
+                ..Instruction::default()
+            };
+            inst[0x3F] = Instruction {
+                in_type: IT::Ccf,
                 ..Instruction::default()
             };
         }
@@ -1416,7 +1447,7 @@ impl Instruction {
                 r2: RT::A,
                 ..Instruction::default()
             };
-        }     
+        }
         //0xCX
         {
             inst[0xC0] = Instruction {
@@ -1568,6 +1599,12 @@ impl Instruction {
                 condition: CT::C,
                 ..Instruction::default()
             };
+            inst[0xDE] = Instruction {
+                in_type: IT::Sub,
+                mode: AM::D8,
+                r1: RT::A,
+                ..Instruction::default()
+            };
             inst[0xDF] = Instruction {
                 in_type: IT::Rst,
                 param: 0x18,
@@ -1683,10 +1720,28 @@ impl Instruction {
                 param: 0x30,
                 ..Instruction::default()
             };
+            inst[0xF8] = Instruction {
+                in_type: IT::Ld,
+                mode: AM::HLRegsSP,
+                r1: RT::HL,
+                r2: RT::SP,
+                ..Instruction::default()
+            };
+            inst[0xF9] = Instruction {
+                in_type: IT::Ld,
+                mode: AM::RegReg,
+                r1: RT::SP,
+                r2: RT::HL,
+                ..Instruction::default()
+            };
             inst[0xFA] = Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegA16,
                 r1: RT::A,
+                ..Instruction::default()
+            };
+            inst[0xFB] = Instruction {
+                in_type: IT::Ei,
                 ..Instruction::default()
             };
             inst[0xFE] = Instruction {
@@ -1711,7 +1766,8 @@ impl RegisterType {
     }
 }
 
-impl From<u8> for Instruction { // For CB instructions
+impl From<u8> for Instruction {
+    // For CB instructions
     fn from(code: u8) -> Self {
         Instruction::INSTRUCTIONS[code as usize]
     }
@@ -1729,7 +1785,7 @@ impl From<u8> for RegisterType {
             5 => RT::L,
             6 => RT::HL,
             7 => RT::A,
-            _ => RT::None
+            _ => RT::None,
         }
     }
 }

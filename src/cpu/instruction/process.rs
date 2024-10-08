@@ -6,27 +6,27 @@ use AddressMode as AM;
 use ConditionType as CT;
 use InstructionType as IT;
 
-pub fn process_instruction(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
+pub fn process(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     match cpu.cur_inst.in_type {
         IT::None => panic!("INVALID INSTRUCTION: {:?}", cpu.cur_inst),
         IT::Nop => nop_in(),
         IT::Ld => ld_in(cpu, bus),
         IT::Inc => inc_in(cpu, bus),
         IT::Dec => dec_in(cpu, bus),
-        IT::Rlca => todo!(),
         IT::Add => add_in(cpu),
-        IT::Rrca => todo!(),
-        IT::Stop => todo!(),
-        IT::Rla => todo!(),
-        IT::Rra => todo!(),
-        IT::Daa => todo!(),
-        IT::Cpl => todo!(),
-        IT::Scf => todo!(),
-        IT::Ccf => todo!(),
-        IT::Halt => todo!(),
-        IT::Adc => adc_in(cpu),
         IT::Sub => sub_in(cpu),
         IT::Sbc => sbc_in(cpu),
+        IT::Rlca => rlca_in(cpu),
+        IT::Rrca => rrca_in(cpu),
+        IT::Stop => stop_in(cpu),
+        IT::Rla => rla_in(cpu),
+        IT::Rra => rra_in(cpu),
+        IT::Daa => daa_in(cpu),
+        IT::Cpl => cpl_in(cpu),
+        IT::Scf => scf_in(cpu),
+        IT::Ccf => ccf_in(cpu),
+        IT::Halt => halt_in(cpu),
+        IT::Adc => adc_in(cpu),
         IT::And => and_in(cpu),
         IT::Xor => xor_in(cpu),
         IT::Or => or_in(cpu),
@@ -42,7 +42,7 @@ pub fn process_instruction(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
         IT::Ldh => ldh_in(cpu, bus),
         IT::Jphl => todo!(),
         IT::Di => di_in(cpu),
-        IT::Ei => todo!(),
+        IT::Ei => ei_in(cpu),
         IT::Rst => rst_in(cpu, bus),
         IT::Err => todo!(),
         IT::Rlc => todo!(),
@@ -174,7 +174,7 @@ fn ret_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
 #[inline(always)]
 fn reti_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    cpu._interrupt_master_enabled = true;
+    cpu.interrupt_master_enabled = true;
     ret_in(cpu, bus)
 }
 
@@ -512,7 +512,107 @@ fn push_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
 #[inline(always)]
 fn di_in(cpu: &mut Cpu) -> i32 {
-    cpu._interrupt_master_enabled = false;
+    cpu.interrupt_action = InterruptAction::Disable;
+
+    0
+}
+
+fn ei_in(cpu: &mut Cpu) -> i32 {
+    cpu.interrupt_action = InterruptAction::Enable;
+
+    0
+}
+
+fn rlca_in(cpu: &mut Cpu) -> i32 {
+    let mut reg_a = cpu.regs.a;
+    let carry = (reg_a >> 1) & 1;
+
+    reg_a = (reg_a << 1) | carry;
+    cpu.regs.a = reg_a;
+
+    cpu.regs.set_flags(0, 0, 0, carry as i8);
+
+    0
+}
+
+fn rrca_in(cpu: &mut Cpu) -> i32 {
+    let tmp = cpu.regs.a & 1;
+    cpu.regs.a >>= 1;
+    cpu.regs.a |= tmp << 7;
+
+    cpu.regs.set_flags(0, 0, 0, tmp as i8);
+
+    0
+}
+
+fn rla_in(cpu: &mut Cpu) -> i32 {
+    let tmp = cpu.regs.a;
+    let flag_c = cpu.regs.flag_c();
+    let c = (tmp >> 7) | 1;
+
+    cpu.regs.a = (tmp << 1) | flag_c as u8;
+    cpu.regs.set_flags(0, 0, 0, c as i8);
+
+    0
+}
+
+fn rra_in(cpu: &mut Cpu) -> i32 {
+    let carry = cpu.regs.flag_c() as u8;
+    let new_carry = cpu.regs.a & 1;
+
+    cpu.regs.a >>= 1;
+    cpu.regs.a |= carry << 7;
+
+    cpu.regs.set_flags(0, 0, 0, new_carry as i8);
+
+    0
+}
+
+fn stop_in(_cpu: &mut Cpu) -> i32 {
+    panic!("STOP INSTRUCTION PROCESS");
+}
+
+fn daa_in(cpu: &mut Cpu) -> i32 {
+    let mut tmp: i8 = 0;
+    let mut carry: i8 = 0;
+
+    if cpu.regs.flag_h() || (!cpu.regs.flag_n() && (cpu.regs.a & 0xF) > 9) {
+        tmp = 6;
+    }
+
+    if cpu.regs.flag_c() || (!cpu.regs.flag_n() && cpu.regs.a > 0x99) {
+        tmp |= 0x60;
+        carry = 1;
+    }
+
+    cpu.regs.a += if cpu.regs.flag_n() { -tmp } else { tmp } as u8;
+    cpu.regs.set_flags((cpu.regs.a == 0) as i8, -1, 0, carry);
+
+    0
+}
+
+fn cpl_in(cpu: &mut Cpu) -> i32 {
+    cpu.regs.a = !cpu.regs.a;
+
+    cpu.regs.set_flags(-1, 1, 1, -1);
+
+    0
+}
+
+fn scf_in(cpu: &mut Cpu) -> i32 {
+    cpu.regs.set_flags(-1, 0, 0, 1);
+
+    0
+}
+
+fn ccf_in(cpu: &mut Cpu) -> i32 {
+    cpu.regs.set_flags(-1, 0, 0, cpu.regs.flag_c() as i8 ^ 1);
+
+    0
+}
+
+fn halt_in(cpu: &mut Cpu) -> i32 {
+    cpu.is_halted = true;
 
     0
 }

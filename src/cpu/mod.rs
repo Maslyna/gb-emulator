@@ -9,6 +9,14 @@ use AddressMode as AM;
 use ConditionType as CT;
 use RegisterType as RT;
 
+#[repr(u8)]
+#[derive(Debug)]
+pub enum InterruptAction {
+    None,
+    Enable,
+    Disable
+}
+
 #[derive(Debug)]
 pub struct Cpu {
     pub regs: Registers,
@@ -23,7 +31,8 @@ pub struct Cpu {
     pub is_halted: bool,
     _stepping: bool,
 
-    _interrupt_master_enabled: bool,
+    interrupt_action: InterruptAction,
+    interrupt_master_enabled: bool,
 }
 
 impl Cpu {
@@ -37,7 +46,8 @@ impl Cpu {
             cur_inst: Instruction::default(),
             is_halted: false,
             _stepping: false,
-            _interrupt_master_enabled: false,
+            interrupt_master_enabled: false,
+            interrupt_action: InterruptAction::None
         }
     }
 
@@ -50,13 +60,25 @@ impl Cpu {
 
     pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> i32 {
         if self.is_halted {
-            panic!("self EXEC FAILED");
+            panic!("CPU EXEC FAILED");
         }
 
         let mut cycles = 0;
         self.fetch_instruction(bus);
         cycles += self.fetch_data(bus);
         cycles += self.execute(bus, emu);
+
+        match self.interrupt_action {
+            InterruptAction::Enable => {
+                self.interrupt_master_enabled = true;
+                self.interrupt_action = InterruptAction::None;
+            }
+            InterruptAction::Disable => {
+                self.interrupt_master_enabled = false;
+                self.interrupt_action = InterruptAction::None;
+            }
+            _ => {}
+        }
 
         cycles
     }
@@ -90,7 +112,7 @@ impl Cpu {
             self.regs.flag_c() as i8
         );
 
-        instruction::process_instruction(self, bus)
+        instruction::process(self, bus)
     }
 
     pub fn fetch_instruction(&mut self, bus: &Bus) {
