@@ -58,7 +58,7 @@ impl Rom {
     }
 
     pub fn write(&mut self, _address: u16, _value: u8) {
-        todo!("for now ROM only");
+        // todo!("for now ROM only");
     }
 
     fn calculate_cecksum(&self) -> u8 {

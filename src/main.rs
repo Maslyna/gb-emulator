@@ -50,8 +50,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let args = env::args();
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
-
+    std::thread::sleep(std::time::Duration::from_millis(10000));
     let (cpu, bus, emu) = create_emu(path)?;
+
     run_emu(cpu, bus, emu)?;
 
     Ok(())

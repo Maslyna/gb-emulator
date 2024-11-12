@@ -1,20 +1,16 @@
 mod instruction;
 mod regs;
 
-use crate::{emu::Emu, memory::Bus};
-use instruction::*;
-use regs::*;
-
-use AddressMode as AM;
-use ConditionType as CT;
-use RegisterType as RT;
+use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
+use instruction::{AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT};
+use regs::Registers;
 
 #[repr(u8)]
 #[derive(Debug)]
 pub enum InterruptAction {
     None,
     Enable,
-    Disable
+    Disable,
 }
 
 #[derive(Debug)]
@@ -32,7 +28,7 @@ pub struct Cpu {
     _stepping: bool,
 
     interrupt_action: InterruptAction,
-    interrupt_master_enabled: bool,
+    pub interrupt_master_enabled: bool,
 }
 
 impl Cpu {
@@ -47,7 +43,7 @@ impl Cpu {
             is_halted: false,
             _stepping: false,
             interrupt_master_enabled: false,
-            interrupt_action: InterruptAction::None
+            interrupt_action: InterruptAction::None,
         }
     }
 
@@ -59,16 +55,37 @@ impl Cpu {
     }
 
     pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> i32 {
-        if self.is_halted {
-            panic!("CPU EXEC FAILED");
+        let mut cycles = 0;
+        if !self.is_halted {
+            self.fetch_instruction(bus);
+            cycles += self.fetch_data(bus);
+            cycles += self.execute(bus, emu);
+
+            match self.interrupt_action {
+                InterruptAction::Enable => {
+                    self.interrupt_master_enabled = true;
+                    self.interrupt_action = InterruptAction::None;
+                }
+                InterruptAction::Disable => {
+                    self.interrupt_master_enabled = false;
+                    self.interrupt_action = InterruptAction::None;
+                }
+                _ => {}
+            }
+        } else {
+            emu.cycle(1);
+
+            if bus.interrupts.flags != 0 {
+                self.is_halted = false;
+            }
         }
 
-        let mut cycles = 0;
-        self.fetch_instruction(bus);
-        cycles += self.fetch_data(bus);
-        cycles += self.execute(bus, emu);
+        if self.interrupt_master_enabled {
+            handle_interrupts(self, bus);
+        }
 
         match self.interrupt_action {
+            InterruptAction::None => {}
             InterruptAction::Enable => {
                 self.interrupt_master_enabled = true;
                 self.interrupt_action = InterruptAction::None;
@@ -77,10 +94,9 @@ impl Cpu {
                 self.interrupt_master_enabled = false;
                 self.interrupt_action = InterruptAction::None;
             }
-            _ => {}
         }
 
-        cycles
+        return cycles;
     }
 
     fn _process() {}
@@ -253,12 +269,12 @@ impl Cpu {
         return emu_cycles;
     }
 
-    fn stack_push(&mut self, data: u8, bus: &mut Bus) {
+    pub fn stack_push(&mut self, data: u8, bus: &mut Bus) {
         self.regs.sp -= 1;
         bus.write(self.regs.sp, data);
     }
 
-    fn stack_push16(&mut self, data: u16, bus: &mut Bus) {
+    pub fn stack_push16(&mut self, data: u16, bus: &mut Bus) {
         self.stack_push(((data >> 8) & 0xFF) as u8, bus);
         self.stack_push((data & 0xFF) as u8, bus);
     }
@@ -277,7 +293,7 @@ impl Cpu {
         bytes_to_word!(hi, lo)
     }
 
-    fn read_reg(&self, reg_type: RegisterType) -> u16 {
+    fn read_reg(&self, reg_type: RT) -> u16 {
         return match reg_type {
             RT::None => 0,
             RT::A => self.regs.a as u16,
@@ -297,7 +313,7 @@ impl Cpu {
         };
     }
 
-    fn read_reg8(&self, reg_type: RegisterType, bus: &mut Bus) -> u8 {
+    fn read_reg8(&self, reg_type: RT, bus: &mut Bus) -> u8 {
         match reg_type {
             RT::None => 0,
             RT::A => self.regs.a,
