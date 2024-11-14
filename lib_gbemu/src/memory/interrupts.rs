@@ -64,6 +64,12 @@ impl InterruptState {
     }
 }
 
+impl Default for InterruptState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn handle_interrupts(cpu: &mut Cpu, bus: &mut Bus) {
     const INTERRUPTS: [Interrupt; 5] = [
         Interrupt::Vblank,

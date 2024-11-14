@@ -15,7 +15,7 @@ impl Ram {
     pub fn wram_read(&self, mut address: u16) -> u8 {
         address -= 0xC000;
 
-        return self.wram[address as usize];
+        self.wram[address as usize]
     }
 
     pub fn wram_write(&mut self, mut address: u16, value: u8) {
@@ -27,12 +27,18 @@ impl Ram {
     pub fn hram_read(&self, mut address: u16) -> u8 {
         address -= 0xFF80;
 
-        return self.hram[address as usize];
+        self.hram[address as usize]
     }
 
     pub fn hram_write(&mut self, mut address: u16, value: u8) {
         address -= 0xFF80;
 
         self.hram[address as usize] = value;
+    }
+}
+
+impl Default for Ram {
+    fn default() -> Self {
+        Self::new()
     }
 }

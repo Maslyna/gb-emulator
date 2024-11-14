@@ -13,7 +13,7 @@
 // 0xFF80 - 0xFFFE : Zero Page
 
 pub mod interrupts;
-use interrupts::*;
+use self::interrupts::*;
 
 use crate::cartridge::rom::Rom;
 use crate::ram::Ram;
@@ -63,7 +63,7 @@ impl Bus {
         let lo: u8 = self.read(address);
         let hi: u8 = self.read(address);
 
-        return bytes_to_word!(lo, hi);
+        bytes_to_word!(lo, hi)
     }
 
     pub fn write(&mut self, address: u16, value: u8) {

@@ -2,8 +2,8 @@ mod instruction;
 mod regs;
 
 use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
-use instruction::{AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT};
-use regs::Registers;
+use crate::cpu::instruction::{AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT};
+use crate::cpu::regs::Registers;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             regs: Registers::new(),
             fetched_data: 0,
@@ -96,7 +96,7 @@ impl Cpu {
             }
         }
 
-        return cycles;
+        cycles
     }
 
     fn _process() {}
@@ -266,7 +266,7 @@ impl Cpu {
             } //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
 
-        return emu_cycles;
+        emu_cycles
     }
 
     pub fn stack_push(&mut self, data: u8, bus: &mut Bus) {
@@ -294,7 +294,7 @@ impl Cpu {
     }
 
     fn read_reg(&self, reg_type: RT) -> u16 {
-        return match reg_type {
+        match reg_type {
             RT::None => 0,
             RT::A => self.regs.a as u16,
             RT::F => self.regs.f as u16,
@@ -310,7 +310,7 @@ impl Cpu {
             RT::HL => reverse_u16!((self.regs.h as u16) << 8 | self.regs.l as u16),
             RT::SP => self.regs.pc,
             RT::PC => self.regs.sp,
-        };
+        }
     }
 
     fn read_reg8(&self, reg_type: RT, bus: &mut Bus) -> u8 {
@@ -325,7 +325,7 @@ impl Cpu {
             RT::H => self.regs.h,
             RT::L => self.regs.l,
             RT::HL => bus.read(self.read_reg(reg_type)),
-            _ => panic!("INVALID REG8: {reg_type:?}"),
+            _ => panic!("INVALID REG8: {:?}", reg_type),
         }
     }
 
@@ -378,7 +378,7 @@ impl Cpu {
             RT::HL => {
                 bus.write(self.read_reg(RT::HL), value);
             }
-            _ => panic!("SET REG 8: INVALID REGISTER {reg_type:?}"),
+            _ => panic!("SET REG 8: INVALID REGISTER {:?}", reg_type),
         };
     }
 
@@ -391,5 +391,11 @@ impl Cpu {
             CT::NC => !self.regs.flag_c(),
             CT::C => self.regs.flag_c(),
         }
+    }
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self::new()
     }
 }

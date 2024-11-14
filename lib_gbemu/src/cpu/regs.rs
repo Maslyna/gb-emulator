@@ -20,7 +20,7 @@ pub enum CpuFlag {
     C = 4,
 }
 
-use CpuFlag as CF;
+use self::CpuFlag as CF;
 
 impl Registers {
     pub const fn new() -> Self {

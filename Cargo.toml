@@ -1,6 +1,3 @@
-[package]
-name = "gb-emulator"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
+members = ["lib_gbemu", "gbemu"]

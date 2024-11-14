@@ -1,0 +1,4 @@
+[package]
+name = "lib_gbemu"
+version = "0.1.0"
+authors = ["Mykhailo Ordynysev <mykhailo.ordyntsev@gmail.com>"]

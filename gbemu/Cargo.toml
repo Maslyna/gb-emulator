@@ -1,0 +1,8 @@
+[package]
+name = "gbemu"
+version = "0.1.0"
+authors = ["Mykhailo Ordynysev <mykhailo.ordyntsev@gmail.com>"]
+
+[dependencies]
+lib_gbemu = { path = "../lib_gbemu" }
+sdl2 = { version = "0.37.0", features = ["bundled"] }

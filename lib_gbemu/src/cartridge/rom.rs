@@ -6,6 +6,7 @@ use super::info::*;
 use std::fs::File;
 use std::io;
 use std::io::prelude::*;
+use std::convert::TryInto;
 
 #[derive(Debug)]
 pub enum CartrigeError {
@@ -47,14 +48,14 @@ impl Rom {
             rom_data: buffer.into_boxed_slice(),
         };
 
-        return match rom.is_checksum_valid(&header) {
+        match rom.is_checksum_valid(&header) {
             true => Ok((rom, header)),
             false => Err(CartrigeError::InvalidFile("Invalid checksum")),
-        };
+        }
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        return self.rom_data[address as usize];
+        self.rom_data[address as usize]
     }
 
     pub fn write(&mut self, _address: u16, _value: u8) {
@@ -66,11 +67,11 @@ impl Rom {
         for i in 0x0134..=0x014C {
             x = x.wrapping_sub(self.rom_data[i] as u16).wrapping_sub(1);
         }
-        return x as u8;
+        x as u8
     }
 
     fn is_checksum_valid(&self, header: &Header) -> bool {
-        return self.calculate_cecksum() == header.checksum;
+        self.calculate_cecksum() == header.checksum
     }
 }
 
@@ -166,6 +167,5 @@ impl std::error::Error for CartrigeError {
 }
 
 fn u8_slice_to_ascii(slice: &[u8]) -> String {
-    let s = slice.iter().map(|byte| *byte as char).collect::<String>();
-    return s;
+    slice.iter().map(|byte| *byte as char).collect::<String>()
 }

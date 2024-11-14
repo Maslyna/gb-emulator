@@ -1,12 +1,7 @@
-use crate::cpu::instruction::*;
-use crate::cpu::regs::CpuFlag;
+use self::instruction::{AddressMode as AM, ConditionType as CT, InstructionType as IT};
+use self::regs::CpuFlag as Flag;
 use crate::cpu::*;
 use crate::memory::*;
-
-use AddressMode as AM;
-use ConditionType as CT;
-use CpuFlag as Flag;
-use InstructionType as IT;
 
 pub fn process(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     match cpu.cur_inst.in_type {
@@ -98,7 +93,7 @@ fn ld_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     }
 
     cpu.set_reg(cpu.cur_inst.r1, cpu.fetched_data);
-    return emu_cycles;
+    emu_cycles
 }
 
 fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
@@ -113,7 +108,7 @@ fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
         }
     }
     emu_cycles += 1;
-    return emu_cycles;
+    emu_cycles
 }
 
 fn goto(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
@@ -127,7 +122,7 @@ fn goto(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
         cpu.regs.pc = address;
         emu_cycles += 1;
     }
-    return emu_cycles;
+    emu_cycles
 }
 
 #[inline(always)]
@@ -171,7 +166,7 @@ fn ret_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
         emu_cycles += 1;
     }
-    return emu_cycles;
+    emu_cycles
 }
 
 #[inline(always)]
@@ -483,7 +478,7 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flags(!u as i8, 0, 0, (reg_val & 1) as i8);
             return emu_cycles;
         }
-        _ => panic!("INVALID CB INSTRUCTION: {operation:02X}"),
+        _ => panic!("INVALID CB INSTRUCTION: {:02X}", operation),
     };
 
     emu_cycles

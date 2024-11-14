@@ -2,7 +2,7 @@
 
 mod process;
 
-pub use process::process;
+pub use self::process::process;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instruction {
@@ -139,10 +139,10 @@ impl Instruction {
     }
 
     const fn init_instructions() -> [Instruction; 0x100] {
-        use AddressMode as AM;
-        use ConditionType as CT;
-        use InstructionType as IT;
-        use RegisterType as RT;
+        use self::AddressMode as AM;
+        use self::ConditionType as CT;
+        use self::InstructionType as IT;
+        use self::RegisterType as RT;
 
         let mut inst: [Instruction; 0x100] = [Instruction::default(); 0x100];
 
@@ -1753,13 +1753,13 @@ impl Instruction {
                 ..Instruction::default()
             };
         }
-        return inst;
+        inst
     }
 }
 
 impl RegisterType {
     pub fn is_16bit(&self) -> bool {
-        use RegisterType as RT;
+        use self::RegisterType as RT;
         matches!(self, RT::AF | RT::BC | RT::DE | RT::HL | RT::SP | RT::PC)
     }
 }
@@ -1773,7 +1773,7 @@ impl From<u8> for Instruction {
 
 impl From<u8> for RegisterType {
     fn from(value: u8) -> Self {
-        use RegisterType as RT;
+        use self::RegisterType as RT;
         match value {
             0 => RT::B,
             1 => RT::C,
