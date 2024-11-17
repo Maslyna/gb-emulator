@@ -1485,7 +1485,7 @@ impl Instruction {
             };
             inst[0xC6] = Instruction {
                 in_type: IT::Add,
-                mode: AM::RegA8,
+                mode: AM::RegD8,
                 r1: RT::A,
                 ..Instruction::default()
             };
@@ -1538,7 +1538,7 @@ impl Instruction {
                 ..Instruction::default()
             };
         }
-        //0xD0
+        //0xDX
         {
             inst[0xD0] = Instruction {
                 in_type: IT::Ret,
@@ -1566,7 +1566,7 @@ impl Instruction {
             };
             inst[0xD6] = Instruction {
                 in_type: IT::Sub,
-                mode: AM::D8,
+                mode: AM::RegD8,
                 r1: RT::A,
                 ..Instruction::default()
             };
@@ -1639,7 +1639,8 @@ impl Instruction {
             };
             inst[0xE6] = Instruction {
                 in_type: IT::And,
-                mode: AM::D8,
+                mode: AM::RegD8,
+                r1: RT::A,
                 ..Instruction::default()
             };
             inst[0xE7] = Instruction {
@@ -1655,7 +1656,7 @@ impl Instruction {
             };
             inst[0xE9] = Instruction {
                 in_type: IT::Jp,
-                mode: AM::Mem,
+                mode: AM::Reg,
                 r1: RT::HL,
                 ..Instruction::default()
             };
@@ -1668,7 +1669,8 @@ impl Instruction {
             };
             inst[0xEE] = Instruction {
                 in_type: IT::Xor,
-                mode: AM::D8,
+                mode: AM::RegD8,
+                r1: RT::A,
                 ..Instruction::default()
             };
             inst[0xEF] = Instruction {
@@ -1710,7 +1712,8 @@ impl Instruction {
             };
             inst[0xF6] = Instruction {
                 in_type: IT::Or,
-                mode: AM::D8,
+                mode: AM::RegD8,
+                r1: RT::A,
                 ..Instruction::default()
             };
             inst[0xF7] = Instruction {
@@ -1744,7 +1747,8 @@ impl Instruction {
             };
             inst[0xFE] = Instruction {
                 in_type: IT::Cp,
-                mode: AM::D8,
+                mode: AM::RegD8,
+                r1: RT::A,
                 ..Instruction::default()
             };
             inst[0xFF] = Instruction {
@@ -1753,6 +1757,7 @@ impl Instruction {
                 ..Instruction::default()
             };
         }
+        
         inst
     }
 }

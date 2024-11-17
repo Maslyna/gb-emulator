@@ -13,22 +13,24 @@
 // 0xFF80 - 0xFFFE : Zero Page
 
 pub mod interrupts;
+pub mod ram;
 use self::interrupts::*;
 
+use self::ram::Ram;
 use crate::cartridge::rom::Rom;
-use crate::ram::Ram;
+use crate::io;
 
 #[derive(Debug)]
 pub struct Bus {
     pub interrupts: InterruptState,
-    
+
     rom: Rom,
     ram: Ram,
 }
 
 impl Bus {
     pub const fn new(rom: Rom) -> Self {
-        Self {            
+        Self {
             rom,
             ram: Ram::new(),
             interrupts: InterruptState::new(),
@@ -40,19 +42,31 @@ impl Bus {
             // ROM DATA
             ..0x8000 => self.rom.read(address),
             // Char/Map DATA
-            0x8000..0xA000 => 0, // todo!("UNSUPPORTED BUS READ {address:04X}"),
+            0x8000..0xA000 => {
+                println!("UNSUPPORTED BUS READ {:04X}", address);
+                0
+            }
             // Cartridge RAM
             0xA000..0xC000 => self.rom.read(address),
             // WRAM
             0xC000..0xE000 => self.ram.wram_read(address),
             // ECO RAM
-            0xE000..0xFE00 => 0,
+            0xE000..0xFE00 => {
+                println!("UNSUPPORTED BUS READ {:04X}", address);
+                0
+            }
             // OAM
-            0xFE00..0xFEA0 => 0, // todo!("UNSUPPORTED BUS READ {address:04X}"),
+            0xFE00..0xFEA0 => {
+                println!("UNSUPPORTED BUS READ {:04X}", address);
+                0
+            }
             // Reserved unusable
-            0xFEA0..0xFF00 => 0,
+            0xFEA0..0xFF00 => {
+                println!("UNSUPPORTED BUS READ {:04X}", address);
+                0
+            }
             // IO Registers
-            0xFF00..0xFF80 => 0, // todo!("UNSUPPORTED BUS READ {address:04X}"),
+            0xFF00..0xFF80 => io::read(address),
             // CPU ENABLED REGISTERS
             interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             _ => self.ram.hram_read(address),
@@ -72,19 +86,19 @@ impl Bus {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),
             // Char/Map DATA
-            0x8000..0xA000 => (), //todo!("UNSUPPORTED BUS WRITE {address:04X}"),
+            0x8000..0xA000 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
             // EXT-RAM
             0xA000..0xC000 => self.rom.write(address, value),
             // WRAM
             0xC000..0xE000 => self.ram.wram_write(address, value),
             // Reserved echo RAM
-            0xE000..0xFE00 => (),
+            0xE000..0xFE00 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
             // OAM
-            0xFE00..0xFEA0 => (), //todo!("UNSUPPORTED BUS WRITE {address:04X}"),
+            0xFE00..0xFEA0 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
             // Reserved unusable
-            0xFEA0..0xFF00 => (),
+            0xFEA0..0xFF00 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
             // IO Registers
-            0xFF00..0xFF80 => (), //todo!("UNSUPPORTED BUS WRITE {address:04X}"),
+            0xFF00..0xFF80 => io::write(address, value),
             // CPU SET ENABLE REGISTER
             0xFFFF => self.interrupts.enabled = value,
             _ => self.ram.hram_write(address, value),

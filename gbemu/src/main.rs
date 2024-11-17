@@ -6,6 +6,7 @@ use lib_gbemu::cartridge::rom::Rom;
 use lib_gbemu::cpu::Cpu;
 use lib_gbemu::emu::Emu;
 use lib_gbemu::memory::Bus;
+use lib_gbemu::debug::GBDebug;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -59,6 +60,8 @@ fn ui_init() {
 }
 
 fn run_emu(mut cpu: Cpu, mut bus: Bus, mut emu: Emu) -> Result<(), Box<dyn Error>> {
+    let mut debug = GBDebug::new();
+    
     emu.running = true;
     while emu.running {
         if emu.paused {
@@ -66,10 +69,8 @@ fn run_emu(mut cpu: Cpu, mut bus: Bus, mut emu: Emu) -> Result<(), Box<dyn Error
             continue;
         }
 
-        let cycles = cpu.step(&mut emu, &mut bus);
+        let cycles = cpu.step(&mut emu, &mut bus, &mut debug);
         emu.cycle(cycles);
-
-        emu.ticks += 1;
     }
 
     Ok(())

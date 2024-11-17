@@ -16,7 +16,13 @@ impl Emu {
         }
     }
 
-    pub fn cycle(&mut self, _cycles: i32) {}
+    pub fn cycle(&mut self, cycles: i32) {
+        let time = cycles * 4;
+
+        for _ in 0..time {
+            self.ticks += 1;
+        }
+    }
 }
 
 impl Default for Emu {

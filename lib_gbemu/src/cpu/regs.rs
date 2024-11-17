@@ -47,6 +47,14 @@ impl Registers {
         };
     }
 
+    pub fn _set_flags(&mut self, z: bool, n: bool, h: bool, c: bool) {
+        set_bit!(self.f, CF::Z as u8, z);
+        set_bit!(self.f, CF::N as u8, n);
+        set_bit!(self.f, CF::H as u8, h);
+        set_bit!(self.f, CF::C as u8, c);
+    }
+    
+
     pub fn set_flags(&mut self, z: i8, n: i8, h: i8, c: i8) {
         if z >= 0 {
             set_bit!(self.f, CF::Z as u8, z != 0);

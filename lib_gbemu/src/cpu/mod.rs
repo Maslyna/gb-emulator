@@ -1,9 +1,13 @@
 mod instruction;
 mod regs;
 
-use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
-use crate::cpu::instruction::{AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT};
+use crate::cpu::instruction::{
+    AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
+};
+use crate::debug::GBDebug;
 use crate::cpu::regs::Registers;
+use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
+use std::fmt::Write;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -27,8 +31,8 @@ pub struct Cpu {
     pub is_halted: bool,
     _stepping: bool,
 
-    interrupt_action: InterruptAction,
     pub interrupt_master_enabled: bool,
+    pub enabling_ime: bool,
 }
 
 impl Cpu {
@@ -43,7 +47,7 @@ impl Cpu {
             is_halted: false,
             _stepping: false,
             interrupt_master_enabled: false,
-            interrupt_action: InterruptAction::None,
+            enabling_ime: false
         }
     }
 
@@ -54,24 +58,16 @@ impl Cpu {
         cpu
     }
 
-    pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> i32 {
+    pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus, debug: &mut GBDebug) -> i32 {
         let mut cycles = 0;
         if !self.is_halted {
             self.fetch_instruction(bus);
             cycles += self.fetch_data(bus);
-            cycles += self.execute(bus, emu);
 
-            match self.interrupt_action {
-                InterruptAction::Enable => {
-                    self.interrupt_master_enabled = true;
-                    self.interrupt_action = InterruptAction::None;
-                }
-                InterruptAction::Disable => {
-                    self.interrupt_master_enabled = false;
-                    self.interrupt_action = InterruptAction::None;
-                }
-                _ => {}
-            }
+            debug.update(bus);
+            debug.print();
+
+            cycles += self.execute(bus, emu);
         } else {
             emu.cycle(1);
 
@@ -84,30 +80,18 @@ impl Cpu {
             handle_interrupts(self, bus);
         }
 
-        match self.interrupt_action {
-            InterruptAction::None => {}
-            InterruptAction::Enable => {
-                self.interrupt_master_enabled = true;
-                self.interrupt_action = InterruptAction::None;
-            }
-            InterruptAction::Disable => {
-                self.interrupt_master_enabled = false;
-                self.interrupt_action = InterruptAction::None;
-            }
-        }
-
         cycles
     }
 
     fn _process() {}
 
     pub fn execute(&mut self, bus: &mut Bus, emu: &mut Emu) -> i32 {
-        let tick = emu.ticks;
+        let instruction_view = instruction_to_str(self, bus);
         debug!(
-            "{tick:08} - PC: {:04X} T:{:?}\tOP: ({:02X} {:02X} {:02X})\n\t\
-                A: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
+            "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X})\n\tA: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
+            emu.ticks,
             self.regs.pc,
-            self.cur_inst.in_type,
+            instruction_view,
             self.cur_opcode,
             bus.read(self.regs.pc + 1),
             bus.read(self.regs.pc + 2),
@@ -156,16 +140,6 @@ impl Cpu {
                 emu_cycles += 1;
                 self.regs.pc += 1;
             }
-            AM::A16Reg | AM::D16Reg => {
-                let lo = bus.read(self.regs.pc);
-                emu_cycles += 1;
-                let hi = bus.read(self.regs.pc + 1);
-                emu_cycles += 1;
-
-                self.mem_dest = bytes_to_word!(lo, hi);
-                self.dest_is_mem = true;
-                self.fetched_data = self.read_reg(self.cur_inst.r2);
-            }
             AM::D16 | AM::RegD16 => {
                 let lo = bus.read(self.regs.pc);
                 emu_cycles += 1;
@@ -174,31 +148,6 @@ impl Cpu {
 
                 self.fetched_data = bytes_to_word!(lo, hi);
                 self.regs.pc += 2;
-            }
-            AM::MemD8 => {
-                self.fetched_data = bus.read(self.regs.pc) as u16;
-                emu_cycles += 1;
-                self.regs.pc += 1;
-                self.mem_dest = self.read_reg(self.cur_inst.r1);
-                self.dest_is_mem = true;
-            }
-            AM::Mem => {
-                self.mem_dest = self.read_reg(self.cur_inst.r1);
-                self.dest_is_mem = true;
-                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r1)) as u16;
-                emu_cycles += 1;
-            }
-            AM::RegA16 => {
-                let lo = bus.read(self.regs.pc);
-                emu_cycles += 1;
-                let hi = bus.read(self.regs.pc + 1);
-                emu_cycles += 1;
-
-                let addr = bytes_to_word!(lo, hi);
-
-                self.regs.pc += 2;
-                self.fetched_data = bus.read(addr) as u16;
-                emu_cycles += 1;
             }
             AM::MemReg => {
                 self.fetched_data = self.read_reg(self.cur_inst.r2);
@@ -263,7 +212,47 @@ impl Cpu {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
                 emu_cycles += 1;
                 self.regs.pc += 1;
-            } //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
+            }
+            AM::A16Reg | AM::D16Reg => {
+                let lo = bus.read(self.regs.pc);
+                emu_cycles += 1;
+                let hi = bus.read(self.regs.pc + 1);
+                emu_cycles += 1;
+
+                self.mem_dest = bytes_to_word!(lo, hi);
+                self.dest_is_mem = true;
+
+                self.regs.pc += 2;
+                self.fetched_data = self.read_reg(self.cur_inst.r2);
+            }
+            AM::MemD8 => {
+                self.fetched_data = bus.read(self.regs.pc) as u16;
+                emu_cycles += 1;
+                self.regs.pc += 1;
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
+                self.dest_is_mem = true;
+            }
+            AM::Mem => {
+                self.mem_dest = self.read_reg(self.cur_inst.r1);
+                self.dest_is_mem = true;
+                let reg_1 = self.read_reg(self.cur_inst.r1);
+                
+                self.fetched_data = bus.read(reg_1) as u16;
+                emu_cycles += 1;
+            }
+            AM::RegA16 => {
+                let lo = bus.read(self.regs.pc);
+                emu_cycles += 1;
+                let hi = bus.read(self.regs.pc + 1);
+                emu_cycles += 1;
+
+                let addr = bytes_to_word!(lo, hi);
+
+                self.regs.pc += 2;
+                self.fetched_data = bus.read(addr) as u16;
+                emu_cycles += 1;
+            }
+             //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
 
         emu_cycles
@@ -398,4 +387,75 @@ impl Default for Cpu {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn instruction_to_str(cpu: &Cpu, bus: &Bus) -> String {
+    let inst = cpu.cur_inst;
+    let fetched_data = cpu.fetched_data;
+    let mut result = String::new();
+
+    write!(&mut result, "{:?}", cpu.cur_inst.in_type).unwrap();
+
+    match inst.mode {
+        AM::Imp => {}
+        AM::RegD16 | AM::RegA16 => {
+            write!(&mut result, " {:?}, ${:04X}", inst.r1, fetched_data).unwrap();
+        }
+        AM::Reg => {
+            write!(&mut result, " {:?}", inst.r1).unwrap();
+        }
+        AM::RegReg => {
+            write!(&mut result, " {:?}, {:?}", inst.r1, inst.r2).unwrap();
+        }
+        AM::MemReg => {
+            write!(&mut result, " ({:?}), {:?}", inst.r1, inst.r2).unwrap();
+        }
+        AM::RegMem => {
+            write!(&mut result, " {:?}, ({:?})", inst.r1, inst.r2).unwrap();
+        }
+        AM::RegD8 | AM::RegA8 => {
+            write!(&mut result, " {:?}, ${:02X}", inst.r1, fetched_data as u8).unwrap();
+        }
+        AM::RegHLI => {
+            write!(&mut result, " {:?}, ({:?}+)", inst.r1, inst.r2).unwrap();
+        }
+        AM::RegHLD => {
+            write!(&mut result, " {:?}, ({:?}-)", inst.r1, inst.r2).unwrap();
+        }
+        AM::HLIReg => {
+            write!(&mut result, " ({:?}+), {:?}", inst.r1, inst.r2).unwrap();
+        }
+        AM::HLDReg => {
+            write!(&mut result, " ({:?}-), {:?}", inst.r1, inst.r2).unwrap();
+        }
+        AM::A8Reg => {
+            write!(
+                &mut result,
+                " ${:02X}, {:?}",
+                bus.read(fetched_data),
+                inst.r2
+            )
+            .unwrap();
+        }
+        AM::HLRegsSP => {
+            write!(&mut result, " ({:?}), SP+{:?}", inst.r1, fetched_data as u8).unwrap();
+        }
+        AM::D8 => {
+            write!(&mut result, " ${:02X}", fetched_data as u8).unwrap();
+        }
+        AM::D16 => {
+            write!(&mut result, " ${:04X}", fetched_data).unwrap();
+        }
+        AM::MemD8 => {
+            write!(&mut result, " ({:?}),${:02X}", inst.r1, fetched_data as u8).unwrap();
+        }
+        AM::A16Reg => {
+            write!(&mut result, " (${:04X}), {:?}", fetched_data, inst.r2).unwrap();
+        }
+        _ => {
+            result.push_str("INVALID ADDRESS MODE");
+        }
+    }
+
+    result
 }
