@@ -26,7 +26,7 @@ impl Registers {
     pub const fn new() -> Self {
         Self {
             a: 0x01,
-            f: 0x80,
+            f: 0xB0,
             b: 0x00,
             c: 0x13,
             d: 0x00,

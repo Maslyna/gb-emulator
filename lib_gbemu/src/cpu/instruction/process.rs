@@ -99,7 +99,7 @@ fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.set_reg(cpu.cur_inst.r1, bus.read(0xFF00 | cpu.fetched_data) as u16);
         }
         _ => {
-            bus.write(0xFF00 | cpu.fetched_data, cpu.regs.a);
+            bus.write(cpu.mem_dest, cpu.regs.a);
         }
     }
 
@@ -172,7 +172,7 @@ fn reti_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
 fn inc_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     let mut emu_cycles = 0;
-    let mut val = cpu.read_reg(cpu.cur_inst.r1) + 1;
+    let mut val = cpu.read_reg(cpu.cur_inst.r1).wrapping_add(1);
 
     if cpu.cur_inst.r1.is_16bit() {
         emu_cycles += 1;
@@ -180,7 +180,7 @@ fn inc_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
     if cpu.cur_inst.r1 == RT::HL && cpu.cur_inst.mode == AM::Mem {
         let reg_hl = cpu.read_reg(RT::HL);
-        val = (bus.read(reg_hl) + 1) as u16;
+        val = ((bus.read(reg_hl)) as u16).wrapping_add(1);
         val &= 0xFF;
         bus.write(reg_hl, val as u8);
     } else {
@@ -194,7 +194,7 @@ fn inc_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 
     cpu.regs.set_flag(Flag::Z, val == 0);
     cpu.regs.set_flag(Flag::N, false);
-    cpu.regs.set_flag(Flag::H, (val & 0xFF) == 0);
+    cpu.regs.set_flag(Flag::H, (val & 0x0F) == 0);
 
     emu_cycles
 }
@@ -370,12 +370,11 @@ fn cp_in(cpu: &mut Cpu) -> i32 {
     let a = cpu.regs.a as i32;
     let data = cpu.fetched_data as i32;
 
-    // Perform the subtraction
-    let result = a - data;
+    let result = a.wrapping_sub(data);
 
     let flag_z = result == 0;
     let flag_n = true;
-    let flag_h = (a & 0x0F) - (data & 0x0F) < 0;
+    let flag_h = ((a & 0x0F) - (data & 0x0F)) < 0;
     let flag_c = result < 0;
 
     cpu.regs._set_flags(flag_z, flag_n, flag_h, flag_c);

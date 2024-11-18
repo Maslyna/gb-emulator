@@ -46,21 +46,11 @@ impl InterruptState {
     pub fn is_active(&self, interrupt: Interrupt) -> bool {
         let it = interrupt as u8;
 
-        assert_eq!(
-            (self.flags & it == it) && (self.enabled & it == it),
-            (self.flags & it != 0) && (self.enabled & it != 0)
-        );
-
         (self.flags & it == it) && (self.enabled & it == it)
     }
 
     pub fn remove_flag(&mut self, interrupt: Interrupt) {
-        let mut flags_copy = self.flags;
-        flags_copy &= interrupt as u8 ^ 0xFF;
-
         self.flags &= !(interrupt as u8);
-
-        assert_eq!(flags_copy, self.flags)
     }
 }
 

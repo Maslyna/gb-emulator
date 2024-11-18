@@ -48,9 +48,10 @@ pub fn run_emu(mut cpu: Cpu, mut bus: Bus, mut emu: Emu) -> Result<(), Box<dyn E
             std::thread::sleep(std::time::Duration::from_millis(10));
             continue;
         }
+
+        let cycles = cpu.step(&mut emu, &mut bus);
         debug.update(&mut bus);
         debug.print();
-        let cycles = cpu.step(&mut emu, &mut bus);
         emu.cycle(&mut bus.timer, cycles);
         bus.step();
     }

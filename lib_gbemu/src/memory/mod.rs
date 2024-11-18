@@ -77,22 +77,16 @@ impl Bus {
             // IO Registers
             0xFF00..0xFF80 => {
                 // println!("IO READ: {:04X}", address);
-                if address == 0xFF01 {
-                    return self.serial_data[0];
+                match address {
+                    0xFF01 => self.serial_data[0],
+                    0xFF02 => self.serial_data[1],
+                    0xFF04..=0xFF07 => self.timer.read(address),
+                    0xFF0F => self.interrupts.flags,
+                    _ => {
+                        eprintln!("UNSUPPORTED BUS READ {:04X}", address);
+                        0
+                    }
                 }
-                if address == 0xFF02 {
-                    return self.serial_data[1];
-                }
-                if (0xFF04..=0xFF07).contains(&address) {
-                    return self.timer.read(address);
-                }
-                if address == 0xFF0F {
-                    return self.interrupts.flags;
-                }
-
-                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
-
-                0
             }
             // CPU ENABLED REGISTERS
             interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
@@ -127,27 +121,16 @@ impl Bus {
             0xFE00..0xFEA0 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // Reserved unusable
             0xFEA0..0xFF00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
-            // IO Registers
+            // IO Registers 0xFF00..0xFF80
             0xFF00..0xFF80 => {
-                println!("IO WRITE: {:04X}, {:02X}", address, value);
-                if address == 0xFF01 {
-                    self.serial_data[0] = value;
-                    return;
+                // println!("IO WRITE: {:04X}, {:02X}", address, value);
+                match address {
+                    0xFF01 => self.serial_data[0] = value,
+                    0xFF02 => self.serial_data[1] = value,
+                    0xFF04..=0xFF07 => self.timer.write(address, value),
+                    0xFF0F => self.interrupts.flags = value,
+                    _ => eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
                 }
-                if address == 0xFF02 {
-                    self.serial_data[1] = value;
-                    return;
-                }
-                if (0xFF04..=0xFF07).contains(&address) {
-                    self.timer.write(address, value);
-                    return;
-                }
-                if address == 0xFF0F {
-                    self.interrupts.flags = value;
-                    return;
-                }
-
-                eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value);
             }
             // CPU SET ENABLE REGISTER
             0xFFFF => self.interrupts.enabled = value,

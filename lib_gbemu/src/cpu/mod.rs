@@ -7,9 +7,10 @@ use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
 use crate::cpu::regs::Registers;
-use crate::debug::GBDebug;
 use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
 use std::fmt::Write;
+
+const DEBUG: bool = true;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -68,30 +69,30 @@ impl Cpu {
             cycles += self.fetch_data(bus);
 
             let instruction_view = instruction_to_str(self, bus);
-            debug!(
-                "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X})\n\tA: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
-                emu.ticks,
-                self.regs.pc,
-                instruction_view,
-                self.cur_opcode,
-                bus.read(self.regs.pc + 1),
-                bus.read(self.regs.pc + 2),
-                self.regs.a,
-                self.regs.b,
-                self.regs.c,
-                self.regs.d,
-                self.regs.e,
-                self.regs.h,
-                self.regs.l,
-                self.regs.sp
-            );
-            debug!(
-                "\tFLAGS: Z-{} C-{} H-{} N-{}",
-                self.regs.flag_z() as i8,
-                self.regs.flag_n() as i8,
-                self.regs.flag_h() as i8,
-                self.regs.flag_c() as i8
-            );
+            if DEBUG {
+                let debug_data = format!(
+                    "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X}) A: {:02X} FLAGS: {}{}{}{} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}\n",
+                    emu.ticks,
+                    self.regs.pc,
+                    instruction_view,
+                    self.cur_opcode,
+                    bus.read(self.regs.pc + 1),
+                    bus.read(self.regs.pc + 2),
+                    self.regs.a,
+                    if self.regs.flag_z() {'Z'} else {'-'},
+                    if self.regs.flag_n() {'N'} else {'-'},
+                    if self.regs.flag_h() {'H'} else {'-'},
+                    if self.regs.flag_c() {'C'} else {'-'},
+                    self.regs.b,
+                    self.regs.c,
+                    self.regs.d,
+                    self.regs.e,
+                    self.regs.h,
+                    self.regs.l,
+                    self.regs.sp).to_uppercase();
+                print!("{}", debug_data);
+                // debug_write(&debug_data);
+            }
 
             cycles += self.execute(bus);
         } else {
@@ -263,7 +264,7 @@ impl Cpu {
     }
 
     pub fn stack_push(&mut self, data: u8, bus: &mut Bus) {
-        self.regs.sp -= 1;
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
         bus.write(self.regs.sp, data);
     }
 
@@ -297,10 +298,10 @@ impl Cpu {
             RT::E => self.regs.e as u16,
             RT::H => self.regs.h as u16,
             RT::L => self.regs.l as u16,
-            RT::AF => reverse((self.regs.a as u16) << 8 | self.regs.f as u16),
-            RT::BC => reverse((self.regs.b as u16) << 8 | self.regs.c as u16),
-            RT::DE => reverse((self.regs.d as u16) << 8 | self.regs.e as u16),
-            RT::HL => reverse((self.regs.h as u16) << 8 | self.regs.l as u16),
+            RT::AF => (self.regs.a as u16) << 8 | (self.regs.f as u16),
+            RT::BC => (self.regs.b as u16) << 8 | (self.regs.c as u16),
+            RT::DE => (self.regs.d as u16) << 8 | (self.regs.e as u16),
+            RT::HL => (self.regs.h as u16) << 8 | (self.regs.l as u16),
             // RT::AF => (self.regs.a as u16) << 8 | (self.regs.f & 0xF0) as u16,
             // RT::BC => (self.regs.b as u16) << 8 | self.regs.c as u16,
             // RT::DE => (self.regs.d as u16) << 8 | self.regs.e as u16,
@@ -329,41 +330,57 @@ impl Cpu {
     fn set_reg(&mut self, reg_type: RT, value: u16) {
         match reg_type {
             RT::None => panic!("Invalid register type!"),
-            RT::A => self.regs.a = (value & 0xFF) as u8,
-            RT::F => self.regs.f = (value & 0xFF) as u8,
-            RT::B => self.regs.b = (value & 0xFF) as u8,
-            RT::C => self.regs.c = (value & 0xFF) as u8,
-            RT::D => self.regs.d = (value & 0xFF) as u8,
-            RT::E => self.regs.e = (value & 0xFF) as u8,
-            RT::H => self.regs.h = (value & 0xFF) as u8,
-            RT::L => self.regs.l = (value & 0xFF) as u8,
+            RT::A => self.regs.a = value as u8,
+            RT::F => self.regs.f = value as u8,
+            RT::B => self.regs.b = value as u8,
+            RT::C => self.regs.c = value as u8,
+            RT::D => self.regs.d = value as u8,
+            RT::E => self.regs.e = value as u8,
+            RT::H => self.regs.h = value as u8,
+            RT::L => self.regs.l = value as u8,
             RT::AF => {
-                let reversed = reverse(value);
-                self.regs.a = (reversed & 0xFF) as u8;
-                self.regs.f = (reversed >> 8) as u8;
+                // let reversed = reverse(value);
+                // self.regs.a = (reversed & 0xFF) as u8;
+                // self.regs.f = (reversed >> 8) as u8;
+
                 // self.regs.a = (value >> 8) as u8;
                 // self.regs.f = (value & 0x00F0) as u8;
+
+                self.regs.a = ((value & 0xFF00) >> 8) as u8;
+                self.regs.f = value as u8;
             }
             RT::BC => {
-                let reversed = reverse(value);
-                self.regs.b = (reversed & 0xFF) as u8;
-                self.regs.c = (reversed >> 8) as u8;
+                // let reversed = reverse(value);
+                // self.regs.b = (reversed & 0xFF) as u8;
+                // self.regs.c = (reversed >> 8) as u8;
+
                 // self.regs.b = (value >> 8) as u8;
                 // self.regs.c = (value & 0x00FF) as u8;
+
+                self.regs.b = ((value & 0xFF00) >> 8) as u8;
+                self.regs.c = value as u8;
             }
             RT::DE => {
-                let reversed = reverse(value);
-                self.regs.d = (reversed & 0xFF) as u8;
-                self.regs.e = (reversed >> 8) as u8;
+                // let reversed = reverse(value);
+                // self.regs.d = (reversed & 0xFF) as u8;
+                // self.regs.e = (reversed >> 8) as u8;
+
                 // self.regs.d = (value >> 8) as u8;
                 // self.regs.e = (value & 0x00FF) as u8;
+
+                self.regs.d = ((value & 0xFF00) >> 8) as u8;
+                self.regs.e = value as u8;
             }
             RT::HL => {
-                let reversed = reverse(value);
-                self.regs.h = (reversed & 0xFF) as u8;
-                self.regs.l = (reversed >> 8) as u8;
+                // let reversed = reverse(value);
+                // self.regs.h = (reversed & 0xFF) as u8;
+                // self.regs.l = (reversed >> 8) as u8;
+
                 // self.regs.h = (value >> 8) as u8;
                 // self.regs.l = (value & 0x00FF) as u8;
+
+                self.regs.h = ((value & 0xFF00) >> 8) as u8;
+                self.regs.l = value as u8;
             }
             RT::SP => self.regs.sp = value,
             RT::PC => self.regs.pc = value,
@@ -408,7 +425,7 @@ impl Default for Cpu {
 fn instruction_to_str(cpu: &Cpu, bus: &Bus) -> String {
     let inst = cpu.cur_inst;
     let fetched_data = cpu.fetched_data;
-    let mut result = String::new();
+    let mut result = String::with_capacity(16);
 
     write!(&mut result, "{:?}", cpu.cur_inst.in_type).unwrap();
 
@@ -469,8 +486,12 @@ fn instruction_to_str(cpu: &Cpu, bus: &Bus) -> String {
             write!(&mut result, " (${:04X}), {:?}", fetched_data, inst.r2).unwrap();
         }
         _ => {
-            result.push_str("INVALID ADDRESS MODE");
+            result.push_str("INVALID MODE");
         }
+    };
+
+    while result.len() < 16 {
+        result.push(' ');
     }
 
     result

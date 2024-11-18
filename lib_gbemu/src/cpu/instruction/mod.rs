@@ -146,9 +146,9 @@ impl Instruction {
 
         let mut inst: [Instruction; 0x100] = [Instruction::default(); 0x100];
 
-        //0x0X
+        //0x0X -- +
         {
-            inst[0x00] = Instruction {
+            inst[0x00] = Instruction { // +
                 in_type: IT::Nop,
                 ..Instruction::default()
             };
@@ -158,68 +158,69 @@ impl Instruction {
                 r1: RT::BC,
                 ..Instruction::default()
             };
-            inst[0x02] = Instruction {
+            inst[0x02] = Instruction { // +
                 in_type: IT::Ld,
                 mode: AM::MemReg,
                 r1: RT::BC,
                 r2: RT::A,
                 ..Instruction::default()
             };
-            inst[0x03] = Instruction {
+            inst[0x03] = Instruction { // +
                 in_type: IT::Inc,
                 mode: AM::Reg,
                 r1: RT::BC,
                 ..Instruction::default()
             };
-            inst[0x04] = Instruction {
+            inst[0x04] = Instruction { // +
                 in_type: IT::Inc,
                 mode: AM::Reg,
                 r1: RT::B,
                 ..Instruction::default()
             };
-            inst[0x05] = Instruction {
+            inst[0x05] = Instruction { // +
                 in_type: IT::Dec,
                 mode: AM::Reg,
                 r1: RT::B,
                 ..Instruction::default()
             };
-            inst[0x06] = Instruction {
+            inst[0x06] = Instruction { // +
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::B,
                 ..Instruction::default()
             };
-            inst[0x07] = Instruction {
+            inst[0x07] = Instruction { // +
                 in_type: IT::Rlca,
                 ..Instruction::default()
             };
-            inst[0x08] = Instruction {
+            inst[0x08] = Instruction { // +
                 in_type: IT::Ld,
                 mode: AM::A16Reg,
+                r1: RT::None,
                 r2: RT::SP,
                 ..Instruction::default()
             };
-            inst[0x09] = Instruction {
+            inst[0x09] = Instruction { // +
                 in_type: IT::Add,
                 mode: AM::RegReg,
                 r1: RT::HL,
                 r2: RT::BC,
                 ..Instruction::default()
             };
-            inst[0x0A] = Instruction {
+            inst[0x0A] = Instruction { // +
                 in_type: IT::Ld,
                 mode: AM::RegMem,
                 r1: RT::A,
                 r2: RT::BC,
                 ..Instruction::default()
             };
-            inst[0x0B] = Instruction {
+            inst[0x0B] = Instruction { // +
                 in_type: IT::Dec,
                 mode: AM::Reg,
                 r1: RT::BC,
                 ..Instruction::default()
             };
-            inst[0x0C] = Instruction {
+            inst[0x0C] = Instruction { // +
                 in_type: IT::Inc,
                 mode: AM::Reg,
                 r1: RT::C,
@@ -231,10 +232,14 @@ impl Instruction {
                 r1: RT::C,
                 ..Instruction::default()
             };
-            inst[0x0E] = Instruction {
+            inst[0x0E] = Instruction { // +
                 in_type: IT::Ld,
                 mode: AM::RegD8,
                 r1: RT::C,
+                ..Instruction::default()
+            };
+            inst[0x0F] = Instruction { // +
+                in_type: IT::Rrca,
                 ..Instruction::default()
             };
         }
@@ -399,7 +404,7 @@ impl Instruction {
             };
             inst[0x2A] = Instruction {
                 in_type: IT::Ld,
-                mode: AM::HLIReg,
+                mode: AM::RegHLI,
                 r1: RT::A,
                 r2: RT::HL,
                 ..Instruction::default()
