@@ -17,20 +17,6 @@ macro_rules! set_bit {
 }
 
 #[macro_export]
-macro_rules! between {
-    ($a:expr, $b:expr, $c:expr) => {
-        ($a >= $b) && ($a <= $c)
-    };
-}
-
-#[macro_export]
-macro_rules! reverse_u16 {
-    ($n:expr) => {
-        (($n & 0xFF00) >> 8) | (($n & 0x00FF) << 8)
-    };
-}
-
-#[macro_export]
 macro_rules! bytes_to_word {
     ($lo:expr, $hi:expr) => {
         ($lo as u16) | (($hi as u16) << 8)

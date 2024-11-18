@@ -385,6 +385,8 @@ impl Instruction {
             inst[0x28] = Instruction {
                 in_type: IT::Jr,
                 mode: AM::D8,
+                r1: RT::None,
+                r2: RT::None,
                 condition: CT::Z,
                 ..Instruction::default()
             };
@@ -1605,8 +1607,11 @@ impl Instruction {
             };
             inst[0xDF] = Instruction {
                 in_type: IT::Rst,
+                mode: AM::Imp,
+                r1: RT::None,
+                r2: RT::None,
+                condition: CT::None,
                 param: 0x18,
-                ..Instruction::default()
             };
         }
         //0xEX

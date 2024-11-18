@@ -18,7 +18,7 @@ use self::interrupts::*;
 
 use self::ram::Ram;
 use crate::cartridge::rom::Rom;
-use crate::io;
+use crate::io::timer::Timer;
 
 #[derive(Debug)]
 pub struct Bus {
@@ -26,6 +26,8 @@ pub struct Bus {
 
     rom: Rom,
     ram: Ram,
+    pub timer: Timer,
+    serial_data: [u8; 2],
 }
 
 impl Bus {
@@ -34,7 +36,14 @@ impl Bus {
             rom,
             ram: Ram::new(),
             interrupts: InterruptState::new(),
+            timer: Timer::new(),
+            serial_data: [0; 2],
         }
+    }
+
+    pub fn step(&mut self) {
+        self.interrupts.flags |= self.timer.interrupts;
+        self.timer.interrupts = 0;
     }
 
     pub fn read(&self, address: u16) -> u8 {
@@ -43,7 +52,7 @@ impl Bus {
             ..0x8000 => self.rom.read(address),
             // Char/Map DATA
             0x8000..0xA000 => {
-                println!("UNSUPPORTED BUS READ {:04X}", address);
+                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                 0
             }
             // Cartridge RAM
@@ -52,21 +61,39 @@ impl Bus {
             0xC000..0xE000 => self.ram.wram_read(address),
             // ECO RAM
             0xE000..0xFE00 => {
-                println!("UNSUPPORTED BUS READ {:04X}", address);
+                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                 0
             }
             // OAM
             0xFE00..0xFEA0 => {
-                println!("UNSUPPORTED BUS READ {:04X}", address);
+                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                 0
             }
             // Reserved unusable
             0xFEA0..0xFF00 => {
-                println!("UNSUPPORTED BUS READ {:04X}", address);
+                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                 0
             }
             // IO Registers
-            0xFF00..0xFF80 => io::read(address),
+            0xFF00..0xFF80 => {
+                // println!("IO READ: {:04X}", address);
+                if address == 0xFF01 {
+                    return self.serial_data[0];
+                }
+                if address == 0xFF02 {
+                    return self.serial_data[1];
+                }
+                if (0xFF04..=0xFF07).contains(&address) {
+                    return self.timer.read(address);
+                }
+                if address == 0xFF0F {
+                    return self.interrupts.flags;
+                }
+
+                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
+
+                0
+            }
             // CPU ENABLED REGISTERS
             interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             _ => self.ram.hram_read(address),
@@ -82,23 +109,46 @@ impl Bus {
 
     pub fn write(&mut self, address: u16, value: u8) {
         debug!("Write in bus: {address:04X}, value: {value:02X}");
+        if address == 0xFF02 && value == 0x81 {
+            println!("BREAKPOINT");
+        }
         match address {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),
             // Char/Map DATA
-            0x8000..0xA000 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0x8000..0xA000 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // EXT-RAM
             0xA000..0xC000 => self.rom.write(address, value),
             // WRAM
             0xC000..0xE000 => self.ram.wram_write(address, value),
             // Reserved echo RAM
-            0xE000..0xFE00 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xE000..0xFE00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // OAM
-            0xFE00..0xFEA0 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xFE00..0xFEA0 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // Reserved unusable
-            0xFEA0..0xFF00 => println!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xFEA0..0xFF00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // IO Registers
-            0xFF00..0xFF80 => io::write(address, value),
+            0xFF00..0xFF80 => {
+                println!("IO WRITE: {:04X}, {:02X}", address, value);
+                if address == 0xFF01 {
+                    self.serial_data[0] = value;
+                    return;
+                }
+                if address == 0xFF02 {
+                    self.serial_data[1] = value;
+                    return;
+                }
+                if (0xFF04..=0xFF07).contains(&address) {
+                    self.timer.write(address, value);
+                    return;
+                }
+                if address == 0xFF0F {
+                    self.interrupts.flags = value;
+                    return;
+                }
+
+                eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value);
+            }
             // CPU SET ENABLE REGISTER
             0xFFFF => self.interrupts.enabled = value,
             _ => self.ram.hram_write(address, value),

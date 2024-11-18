@@ -1,11 +1,13 @@
 mod instruction;
 mod regs;
 
+#[allow(unused_imports)]
+use crate::common::*;
 use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
-use crate::debug::GBDebug;
 use crate::cpu::regs::Registers;
+use crate::debug::GBDebug;
 use crate::{emu::Emu, memory::interrupts::handle_interrupts, memory::Bus};
 use std::fmt::Write;
 
@@ -47,7 +49,7 @@ impl Cpu {
             is_halted: false,
             _stepping: false,
             interrupt_master_enabled: false,
-            enabling_ime: false
+            enabling_ime: false,
         }
     }
 
@@ -58,18 +60,42 @@ impl Cpu {
         cpu
     }
 
-    pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus, debug: &mut GBDebug) -> i32 {
+    pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> i32 {
         let mut cycles = 0;
         if !self.is_halted {
             self.fetch_instruction(bus);
+            cycles += 1;
             cycles += self.fetch_data(bus);
 
-            debug.update(bus);
-            debug.print();
+            let instruction_view = instruction_to_str(self, bus);
+            debug!(
+                "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X})\n\tA: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
+                emu.ticks,
+                self.regs.pc,
+                instruction_view,
+                self.cur_opcode,
+                bus.read(self.regs.pc + 1),
+                bus.read(self.regs.pc + 2),
+                self.regs.a,
+                self.regs.b,
+                self.regs.c,
+                self.regs.d,
+                self.regs.e,
+                self.regs.h,
+                self.regs.l,
+                self.regs.sp
+            );
+            debug!(
+                "\tFLAGS: Z-{} C-{} H-{} N-{}",
+                self.regs.flag_z() as i8,
+                self.regs.flag_n() as i8,
+                self.regs.flag_h() as i8,
+                self.regs.flag_c() as i8
+            );
 
-            cycles += self.execute(bus, emu);
+            cycles += self.execute(bus);
         } else {
-            emu.cycle(1);
+            cycles += 1;
 
             if bus.interrupts.flags != 0 {
                 self.is_halted = false;
@@ -78,6 +104,11 @@ impl Cpu {
 
         if self.interrupt_master_enabled {
             handle_interrupts(self, bus);
+            self.enabling_ime = false;
+        }
+
+        if self.enabling_ime {
+            self.interrupt_master_enabled = true;
         }
 
         cycles
@@ -85,33 +116,7 @@ impl Cpu {
 
     fn _process() {}
 
-    pub fn execute(&mut self, bus: &mut Bus, emu: &mut Emu) -> i32 {
-        let instruction_view = instruction_to_str(self, bus);
-        debug!(
-            "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X})\n\tA: {:02X} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}",
-            emu.ticks,
-            self.regs.pc,
-            instruction_view,
-            self.cur_opcode,
-            bus.read(self.regs.pc + 1),
-            bus.read(self.regs.pc + 2),
-            self.regs.a,
-            self.regs.b,
-            self.regs.c,
-            self.regs.d,
-            self.regs.e,
-            self.regs.h,
-            self.regs.l,
-            self.regs.sp
-        );
-        debug!(
-            "\tFLAGS: Z-{} C-{} H-{} N-{}",
-            self.regs.flag_z() as i8,
-            self.regs.flag_n() as i8,
-            self.regs.flag_h() as i8,
-            self.regs.flag_c() as i8
-        );
-
+    pub fn execute(&mut self, bus: &mut Bus) -> i32 {
         instruction::process(self, bus)
     }
 
@@ -236,7 +241,7 @@ impl Cpu {
                 self.mem_dest = self.read_reg(self.cur_inst.r1);
                 self.dest_is_mem = true;
                 let reg_1 = self.read_reg(self.cur_inst.r1);
-                
+
                 self.fetched_data = bus.read(reg_1) as u16;
                 emu_cycles += 1;
             }
@@ -251,8 +256,7 @@ impl Cpu {
                 self.regs.pc += 2;
                 self.fetched_data = bus.read(addr) as u16;
                 emu_cycles += 1;
-            }
-             //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
+            } //_ => panic!("Unknown adressing mode: {:?}", self.cur_inst.mode),
         };
 
         emu_cycles
@@ -279,7 +283,7 @@ impl Cpu {
         let hi = self.stack_pop(bus);
         let lo = self.stack_pop(bus);
 
-        bytes_to_word!(hi, lo)
+        ((hi as u16) << 8) | lo as u16
     }
 
     fn read_reg(&self, reg_type: RT) -> u16 {
@@ -293,10 +297,14 @@ impl Cpu {
             RT::E => self.regs.e as u16,
             RT::H => self.regs.h as u16,
             RT::L => self.regs.l as u16,
-            RT::AF => reverse_u16!((self.regs.a as u16) << 8 | self.regs.f as u16),
-            RT::BC => reverse_u16!((self.regs.b as u16) << 8 | self.regs.c as u16),
-            RT::DE => reverse_u16!((self.regs.d as u16) << 8 | self.regs.e as u16),
-            RT::HL => reverse_u16!((self.regs.h as u16) << 8 | self.regs.l as u16),
+            RT::AF => reverse((self.regs.a as u16) << 8 | self.regs.f as u16),
+            RT::BC => reverse((self.regs.b as u16) << 8 | self.regs.c as u16),
+            RT::DE => reverse((self.regs.d as u16) << 8 | self.regs.e as u16),
+            RT::HL => reverse((self.regs.h as u16) << 8 | self.regs.l as u16),
+            // RT::AF => (self.regs.a as u16) << 8 | (self.regs.f & 0xF0) as u16,
+            // RT::BC => (self.regs.b as u16) << 8 | self.regs.c as u16,
+            // RT::DE => (self.regs.d as u16) << 8 | self.regs.e as u16,
+            // RT::HL => (self.regs.h as u16) << 8 | self.regs.l as u16,
             RT::SP => self.regs.pc,
             RT::PC => self.regs.sp,
         }
@@ -330,24 +338,32 @@ impl Cpu {
             RT::H => self.regs.h = (value & 0xFF) as u8,
             RT::L => self.regs.l = (value & 0xFF) as u8,
             RT::AF => {
-                let reversed = reverse_u16!(value);
+                let reversed = reverse(value);
                 self.regs.a = (reversed & 0xFF) as u8;
                 self.regs.f = (reversed >> 8) as u8;
+                // self.regs.a = (value >> 8) as u8;
+                // self.regs.f = (value & 0x00F0) as u8;
             }
             RT::BC => {
-                let reversed = reverse_u16!(value);
+                let reversed = reverse(value);
                 self.regs.b = (reversed & 0xFF) as u8;
                 self.regs.c = (reversed >> 8) as u8;
+                // self.regs.b = (value >> 8) as u8;
+                // self.regs.c = (value & 0x00FF) as u8;
             }
             RT::DE => {
-                let reversed = reverse_u16!(value);
+                let reversed = reverse(value);
                 self.regs.d = (reversed & 0xFF) as u8;
                 self.regs.e = (reversed >> 8) as u8;
+                // self.regs.d = (value >> 8) as u8;
+                // self.regs.e = (value & 0x00FF) as u8;
             }
             RT::HL => {
-                let reversed = reverse_u16!(value);
+                let reversed = reverse(value);
                 self.regs.h = (reversed & 0xFF) as u8;
                 self.regs.l = (reversed >> 8) as u8;
+                // self.regs.h = (value >> 8) as u8;
+                // self.regs.l = (value & 0x00FF) as u8;
             }
             RT::SP => self.regs.sp = value,
             RT::PC => self.regs.pc = value,

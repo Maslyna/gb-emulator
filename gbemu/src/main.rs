@@ -6,7 +6,7 @@ use lib_gbemu::cartridge::rom::Rom;
 use lib_gbemu::cpu::Cpu;
 use lib_gbemu::emu::Emu;
 use lib_gbemu::memory::Bus;
-use lib_gbemu::debug::GBDebug;
+use lib_gbemu::emu::run_emu;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -57,23 +57,6 @@ fn ui_init() {
         canvas.present();
         std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
-}
-
-fn run_emu(mut cpu: Cpu, mut bus: Bus, mut emu: Emu) -> Result<(), Box<dyn Error>> {
-    let mut debug = GBDebug::new();
-    
-    emu.running = true;
-    while emu.running {
-        if emu.paused {
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            continue;
-        }
-
-        let cycles = cpu.step(&mut emu, &mut bus, &mut debug);
-        emu.cycle(cycles);
-    }
-
-    Ok(())
 }
 
 fn create_emu(path: String) -> Result<Emulator, Box<dyn Error>> {

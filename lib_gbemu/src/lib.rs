@@ -6,3 +6,4 @@ pub mod emu;
 pub mod io;
 pub mod memory;
 pub mod debug;
+mod common;
