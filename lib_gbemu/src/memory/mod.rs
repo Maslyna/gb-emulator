@@ -19,6 +19,7 @@ use self::interrupts::*;
 use self::ram::Ram;
 use crate::cartridge::rom::Rom;
 use crate::io::timer::Timer;
+use crate::gpu::ppu::Ppu;
 
 #[derive(Debug)]
 pub struct Bus {
@@ -26,6 +27,7 @@ pub struct Bus {
 
     rom: Rom,
     ram: Ram,
+    ppu: Ppu,
     pub timer: Timer,
     serial_data: [u8; 2],
 }
@@ -33,6 +35,7 @@ pub struct Bus {
 impl Bus {
     pub const fn new(rom: Rom) -> Self {
         Self {
+            ppu: Ppu::new(),
             rom,
             ram: Ram::new(),
             interrupts: InterruptState::new(),
@@ -51,10 +54,7 @@ impl Bus {
             // ROM DATA
             ..0x8000 => self.rom.read(address),
             // Char/Map DATA
-            0x8000..0xA000 => {
-                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
-                0
-            }
+            0x8000..0xA000 => self.ppu.vram_read(address),
             // Cartridge RAM
             0xA000..0xC000 => self.rom.read(address),
             // WRAM
@@ -65,10 +65,7 @@ impl Bus {
                 0
             }
             // OAM
-            0xFE00..0xFEA0 => {
-                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
-                0
-            }
+            0xFE00..0xFEA0 => self.ppu.oam_read(address),
             // Reserved unusable
             0xFEA0..0xFF00 => {
                 eprintln!("UNSUPPORTED BUS READ {:04X}", address);
@@ -110,7 +107,7 @@ impl Bus {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),
             // Char/Map DATA
-            0x8000..0xA000 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0x8000..0xA000 => self.ppu.vram_write(address, value),
             // EXT-RAM
             0xA000..0xC000 => self.rom.write(address, value),
             // WRAM
@@ -118,7 +115,7 @@ impl Bus {
             // Reserved echo RAM
             0xE000..0xFE00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // OAM
-            0xFE00..0xFEA0 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xFE00..0xFEA0 => self.ppu.oam_write(address, value),
             // Reserved unusable
             0xFEA0..0xFF00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // IO Registers 0xFF00..0xFF80

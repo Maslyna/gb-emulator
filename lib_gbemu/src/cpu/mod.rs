@@ -54,13 +54,6 @@ impl Cpu {
         }
     }
 
-    pub fn with_pc(pc: u16) -> Self {
-        let mut cpu = Cpu::new();
-        cpu.regs.pc = pc;
-
-        cpu
-    }
-
     pub fn step(&mut self, emu: &mut Emu, bus: &mut Bus) -> i32 {
         let mut cycles = 0;
         if !self.is_halted {

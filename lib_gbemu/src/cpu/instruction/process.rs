@@ -106,7 +106,7 @@ fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     1
 }
 
-fn goto(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
+fn goto_in(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
     let mut emu_cycles = 0;
     if cpu.check_cond() {
         if pushpc {
@@ -120,27 +120,23 @@ fn goto(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
     emu_cycles
 }
 
-#[inline(always)]
 fn jp_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto(cpu, cpu.fetched_data, false, bus)
+    goto_in(cpu, cpu.fetched_data, false, bus)
 }
 
-#[inline(always)]
 fn jr_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let rel: i8 = (cpu.fetched_data & 0xFF) as i8;
+    let rel = (cpu.fetched_data & 0xFF) as i8;
     let addr = cpu.regs.pc.wrapping_add(rel as u16);
 
-    goto(cpu, addr, false, bus)
+    goto_in(cpu, addr, false, bus)
 }
 
-#[inline(always)]
 fn call_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto(cpu, cpu.fetched_data, true, bus)
+    goto_in(cpu, cpu.fetched_data, true, bus)
 }
 
-#[inline(always)]
 fn rst_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto(cpu, cpu.cur_inst.param as u16, true, bus)
+    goto_in(cpu, cpu.cur_inst.param as u16, true, bus)
 }
 
 fn ret_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
