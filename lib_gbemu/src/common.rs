@@ -8,15 +8,19 @@ pub fn reverse(n: u16) -> u16 {
 
 #[allow(dead_code)]
 const DEBUG_FILE: &str = "debug_out.txt";
+const DEBUG_OUTPUT: bool = false;
 
 #[allow(dead_code)]
 pub fn debug_write(data: &str) {
-    let file = OpenOptions::new()
-        .create(true) 
-        .append(true) 
-        .open(DEBUG_FILE);
+    if DEBUG_OUTPUT {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(DEBUG_FILE);
 
-    if let Ok(mut f) = file {
-        write!(f, "{}", data).unwrap();
+        if let Ok(mut f) = file {
+            write!(f, "{}", data).unwrap();
+        }
     }
 }

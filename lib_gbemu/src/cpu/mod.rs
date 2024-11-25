@@ -58,6 +58,7 @@ impl Cpu {
         let mut cycles = 0;
         if !self.is_halted {
             self.fetch_instruction(bus);
+
             cycles += 1;
             cycles += self.fetch_data(bus);
 
@@ -84,7 +85,7 @@ impl Cpu {
                     self.regs.l,
                     self.regs.sp).to_uppercase();
                 print!("{}", debug_data);
-                // debug_write(&debug_data);
+                debug_write(&debug_data);
             }
 
             cycles += self.execute(bus);
@@ -116,6 +117,11 @@ impl Cpu {
 
     pub fn fetch_instruction(&mut self, bus: &Bus) {
         self.cur_opcode = bus.read(self.regs.pc);
+
+        if self.cur_opcode == 0xF0 {
+            println!("FOUND");
+        }
+
         self.cur_inst = Instruction::from(self.cur_opcode);
         self.regs.pc += 1;
     }
