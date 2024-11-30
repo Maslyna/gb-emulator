@@ -3,14 +3,14 @@ use self::regs::CpuFlag as Flag;
 use crate::cpu::*;
 use crate::memory::*;
 
-pub fn process(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
+pub fn process(cpu: &mut Cpu, bus: &mut Bus) {
     match cpu.cur_inst.in_type {
         IT::None => panic!("INVALID INSTRUCTION: {:?}", cpu.cur_inst),
         IT::Nop => nop_in(),
         IT::Ld => ld_in(cpu, bus),
         IT::Inc => inc_in(cpu, bus),
         IT::Dec => dec_in(cpu, bus),
-        IT::Add => add_in(cpu),
+        IT::Add => add_in(cpu, bus),
         IT::Sub => sub_in(cpu),
         IT::Sbc => sbc_in(cpu),
         IT::Rlca => rlca_in(cpu),
@@ -57,24 +57,21 @@ pub fn process(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
 }
 
 #[inline(always)]
-fn nop_in() -> i32 {
-    0
-}
+fn nop_in() {}
 
-fn ld_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn ld_in(cpu: &mut Cpu, bus: &mut Bus) {
     if cpu.dest_is_mem {
         //e.g.: LD (BC) A
         if cpu.cur_inst.r2.is_16bit() {
-            emu_cycles += 1;
+            bus.cycle(1);
             bus.write16(cpu.mem_dest, cpu.fetched_data);
         } else {
             bus.write(cpu.mem_dest, cpu.fetched_data as u8);
         }
 
-        emu_cycles += 1;
+        bus.cycle(1);
 
-        return emu_cycles;
+        return;
     }
 
     if cpu.cur_inst.mode == AM::HLRegsSP {
@@ -86,92 +83,86 @@ fn ld_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
         cpu.regs._set_flags(false, false, hflag, cflag);
         cpu.set_reg(cpu.cur_inst.r1, reg_val.wrapping_add(offset as u8 as u16));
 
-        return emu_cycles;
+        return;
     }
 
     cpu.set_reg(cpu.cur_inst.r1, cpu.fetched_data);
-    emu_cycles
 }
 
-fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
+fn ldh_in(cpu: &mut Cpu, bus: &mut Bus) {
     match cpu.cur_inst.r1 {
         RT::A => {
-            cpu.set_reg(cpu.cur_inst.r1, bus.read(0xFF00 | cpu.fetched_data) as u16);
+            let data = bus.read(0xFF00 | cpu.fetched_data) as u16;
+            cpu.set_reg(cpu.cur_inst.r1, data);
         }
         _ => {
             bus.write(cpu.mem_dest, cpu.regs.a);
         }
     }
 
-    1
+    bus.cycle(1);
 }
 
-fn goto_in(cpu: &mut Cpu, address: u16, pushpc: bool, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn goto_in(cpu: &mut Cpu, bus: &mut Bus, address: u16, pushpc: bool) {
     if cpu.check_cond() {
         if pushpc {
             cpu.stack_push16(cpu.regs.pc, bus);
-            emu_cycles += 2;
+            bus.cycle(2);
         }
 
         cpu.regs.pc = address;
-        emu_cycles += 1;
+        bus.cycle(1);
     }
-    emu_cycles
 }
 
-fn jp_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto_in(cpu, cpu.fetched_data, false, bus)
+fn jp_in(cpu: &mut Cpu, bus: &mut Bus) {
+    goto_in(cpu, bus, cpu.fetched_data, false);
 }
 
-fn jr_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
+fn jr_in(cpu: &mut Cpu, bus: &mut Bus) {
     let rel = (cpu.fetched_data & 0xFF) as i8;
     let addr = cpu.regs.pc.wrapping_add(rel as u16);
 
-    goto_in(cpu, addr, false, bus)
+    goto_in(cpu, bus, addr, false);
 }
 
-fn call_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto_in(cpu, cpu.fetched_data, true, bus)
+fn call_in(cpu: &mut Cpu, bus: &mut Bus) {
+    goto_in(cpu, bus, cpu.fetched_data, true);
 }
 
-fn rst_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    goto_in(cpu, cpu.cur_inst.param as u16, true, bus)
+fn rst_in(cpu: &mut Cpu, bus: &mut Bus) {
+    goto_in(cpu, bus, cpu.cur_inst.param as u16, true);
 }
 
-fn ret_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
-
+fn ret_in(cpu: &mut Cpu, bus: &mut Bus) {
     if cpu.cur_inst.condition != CT::None {
-        emu_cycles += 1;
+        bus.cycle(1);
     }
 
     if cpu.check_cond() {
         let lo = cpu.stack_pop(bus);
-        emu_cycles += 1;
+        bus.cycle(1);
         let hi = cpu.stack_pop(bus);
-        emu_cycles += 1;
+        bus.cycle(1);
 
         let value = ((hi as u16) << 8) | (lo as u16);
         cpu.regs.pc = value;
 
-        emu_cycles += 1;
+        bus.cycle(1);
     }
-    emu_cycles
 }
 
 #[inline(always)]
-fn reti_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
+fn reti_in(cpu: &mut Cpu, bus: &mut Bus) {
     cpu.interrupt_master_enabled = true;
-    ret_in(cpu, bus)
+    ret_in(cpu, bus);
 }
 
-fn inc_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn inc_in(cpu: &mut Cpu, bus: &mut Bus) {
     let mut val = cpu.read_reg(cpu.cur_inst.r1).wrapping_add(1);
 
     if cpu.cur_inst.r1.is_16bit() {
-        emu_cycles += 1;
+        bus.cycle(1);
     }
 
     if cpu.cur_inst.r1 == RT::HL && cpu.cur_inst.mode == AM::Mem {
@@ -185,22 +176,19 @@ fn inc_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     }
 
     if (cpu.cur_opcode & 0x03) == 0x03 {
-        return emu_cycles;
+        return;
     }
 
     cpu.regs.set_flag(Flag::Z, val == 0);
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, (val & 0x0F) == 0);
-
-    emu_cycles
 }
 
-fn dec_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn dec_in(cpu: &mut Cpu, bus: &mut Bus) {
     let mut val = cpu.read_reg(cpu.cur_inst.r1) - 1;
 
     if cpu.cur_inst.r1.is_16bit() {
-        emu_cycles += 1;
+        bus.cycle(1);
     }
 
     if cpu.cur_inst.r1 == RT::HL && cpu.cur_inst.mode == AM::Mem {
@@ -213,7 +201,7 @@ fn dec_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     }
 
     if (cpu.cur_opcode & 0x03) == 0x03 {
-        return emu_cycles;
+        return;
     }
 
     let flag_z = val == 0;
@@ -222,13 +210,9 @@ fn dec_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     cpu.regs.set_flag(Flag::Z, flag_z);
     cpu.regs.set_flag(Flag::N, true);
     cpu.regs.set_flag(Flag::H, flag_h);
-
-    emu_cycles
 }
 
-fn add_in(cpu: &mut Cpu) -> i32 {
-    let mut emu_cycles = 0;
-
+fn add_in(cpu: &mut Cpu, bus: &mut Bus) {
     let reg_1: u16 = cpu.read_reg(cpu.cur_inst.r1);
     let is_16bit: bool = cpu.cur_inst.r1.is_16bit();
     let is_sp: bool = cpu.cur_inst.r1 == RT::SP;
@@ -239,7 +223,7 @@ fn add_in(cpu: &mut Cpu) -> i32 {
     };
 
     if is_16bit {
-        emu_cycles += 1;
+        bus.cycle(1);
     }
 
     let (z, h, c) = if is_sp {
@@ -272,11 +256,9 @@ fn add_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, h);
     cpu.regs.set_flag(Flag::C, c);
-
-    emu_cycles
 }
 
-fn adc_in(cpu: &mut Cpu) -> i32 {
+fn adc_in(cpu: &mut Cpu) {
     let u = cpu.fetched_data;
     let a = cpu.regs.a as u16;
     let c = cpu.regs.flag_c() as u16;
@@ -291,11 +273,9 @@ fn adc_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, flag_h);
     cpu.regs.set_flag(Flag::C, flag_c);
-
-    0
 }
 
-fn sub_in(cpu: &mut Cpu) -> i32 {
+fn sub_in(cpu: &mut Cpu) {
     let reg_val = cpu.read_reg(cpu.cur_inst.r1);
     let val = reg_val.wrapping_sub(cpu.fetched_data);
 
@@ -309,11 +289,9 @@ fn sub_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::N, true);
     cpu.regs.set_flag(Flag::H, flag_h);
     cpu.regs.set_flag(Flag::C, flag_c);
-
-    0
 }
 
-fn sbc_in(cpu: &mut Cpu) -> i32 {
+fn sbc_in(cpu: &mut Cpu) {
     let flag_c = cpu.regs.flag_c();
     let val = (cpu.fetched_data + (flag_c as u16)) as u8;
     let reg_1 = cpu.read_reg(cpu.cur_inst.r1);
@@ -334,35 +312,27 @@ fn sbc_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::N, true);
     cpu.regs.set_flag(Flag::H, flag_h);
     cpu.regs.set_flag(Flag::C, flag_c);
-
-    0
 }
 
-fn and_in(cpu: &mut Cpu) -> i32 {
+fn and_in(cpu: &mut Cpu) {
     cpu.regs.a &= cpu.fetched_data as u8;
 
     cpu.regs._set_flags(cpu.regs.a == 0, false, true, false);
-
-    0
 }
 
-fn xor_in(cpu: &mut Cpu) -> i32 {
+fn xor_in(cpu: &mut Cpu) {
     cpu.regs.a ^= (cpu.fetched_data & 0xFF) as u8;
 
     cpu.regs._set_flags(cpu.regs.a == 0, false, false, false);
-
-    0
 }
 
 #[allow(clippy::identity_op)]
-fn or_in(cpu: &mut Cpu) -> i32 {
+fn or_in(cpu: &mut Cpu) {
     cpu.regs.a |= cpu.fetched_data as u8 & 0xFF;
     cpu.regs._set_flags(cpu.regs.a == 0, false, false, false);
-
-    0
 }
 
-fn cp_in(cpu: &mut Cpu) -> i32 {
+fn cp_in(cpu: &mut Cpu) {
     let a = cpu.regs.a as i32;
     let data = cpu.fetched_data as i32;
 
@@ -374,12 +344,9 @@ fn cp_in(cpu: &mut Cpu) -> i32 {
     let flag_c = result < 0;
 
     cpu.regs._set_flags(flag_z, flag_n, flag_h, flag_c);
-
-    0
 }
 
-fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn cb_in(cpu: &mut Cpu, bus: &mut Bus) {
     let operation = cpu.fetched_data;
     let reg = RT::from(operation as u8 & 0b111);
     let mut reg_val = cpu.read_reg8(reg, bus);
@@ -387,7 +354,7 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     let bit_op = ((operation >> 6) & 0b11) as u8;
     let flag_c = cpu.regs.flag_c();
 
-    emu_cycles += if reg == RT::HL { 3 } else { 1 };
+    bus.cycle(if reg == RT::HL { 3 } else { 1 });
 
     match bit_op {
         1 => {
@@ -396,19 +363,19 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::Z, flag_z != 0);
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, true);
-            return emu_cycles;
+            return;
         }
         2 => {
             // RST
             reg_val &= !(1 << bit);
             cpu.set_reg8(reg, reg_val, bus);
-            return emu_cycles;
+            return;
         }
         3 => {
             // SET
             reg_val |= !(1 << bit);
             cpu.set_reg8(reg, reg_val, bus);
-            return emu_cycles;
+            return;
         }
         _ => {}
     };
@@ -431,8 +398,6 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, false);
             cpu.regs.set_flag(Flag::C, flag_c);
-
-            return emu_cycles;
         }
         1 => {
             // RRC
@@ -446,8 +411,6 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, false);
             cpu.regs.set_flag(Flag::C, (old & 1) != 0);
-
-            return emu_cycles;
         }
         2 => {
             // RL
@@ -460,8 +423,7 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::Z, (!reg_val) != 0);
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, false);
-            cpu.regs.set_flag(Flag::C, (!!(old & 0x80)) != 0);
-            return emu_cycles;
+            cpu.regs.set_flag(Flag::C, (!!(old & 0x80)) != 0)
         }
         3 => {
             // RR
@@ -487,8 +449,6 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, false);
             cpu.regs.set_flag(Flag::C, (!!(old & 0x80)) != 0);
-
-            return emu_cycles;
         }
         5 => {
             // SRA
@@ -500,8 +460,6 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false);
             cpu.regs.set_flag(Flag::H, false);
             cpu.regs.set_flag(Flag::C, (reg_val & 1) != 0);
-
-            return emu_cycles;
         }
         6 => {
             // SWAP
@@ -512,8 +470,6 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false); // Subtraction flag
             cpu.regs.set_flag(Flag::H, false); // Half-carry flag
             cpu.regs.set_flag(Flag::C, false); // Carry flag
-
-            return emu_cycles;
         }
         7 => {
             // SRL
@@ -525,21 +481,16 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
             cpu.regs.set_flag(Flag::N, false); // Subtraction flag
             cpu.regs.set_flag(Flag::H, false); // Half-carry flag
             cpu.regs.set_flag(Flag::C, (reg_val & 1) != 0); // Carry flag if LSB is 1
-
-            return emu_cycles;
         }
         _ => panic!("INVALID CB INSTRUCTION: {:02X}", operation),
     };
-
-    emu_cycles
 }
 
-fn pop_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn pop_in(cpu: &mut Cpu, bus: &mut Bus) {
     let lo = cpu.stack_pop(bus);
-    emu_cycles += 1;
+    bus.cycle(1);
     let hi = cpu.stack_pop(bus);
-    emu_cycles += 1;
+    bus.cycle(1);
 
     let result = ((hi as u16) << 8) | (lo as u16);
     let reg_1 = cpu.cur_inst.r1;
@@ -549,39 +500,30 @@ fn pop_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
     if reg_1 == RT::AF {
         cpu.set_reg(reg_1, result & 0xFFF0)
     };
-
-    emu_cycles
 }
 
-fn push_in(cpu: &mut Cpu, bus: &mut Bus) -> i32 {
-    let mut emu_cycles = 0;
+fn push_in(cpu: &mut Cpu, bus: &mut Bus) {
     let hi = (cpu.read_reg(cpu.cur_inst.r1) >> 8) & 0xFF;
-    emu_cycles += 1;
+    bus.cycle(1);
     cpu.stack_push(hi as u8, bus);
 
     let lo = cpu.read_reg(cpu.cur_inst.r1) & 0xFF;
-    emu_cycles += 1;
+    bus.cycle(1);
     cpu.stack_push(lo as u8, bus);
 
-    emu_cycles += 1;
-
-    emu_cycles
+    bus.cycle(1);
 }
 
 #[inline(always)]
-fn di_in(cpu: &mut Cpu) -> i32 {
+fn di_in(cpu: &mut Cpu) {
     cpu.interrupt_master_enabled = false;
-
-    0
 }
 
-fn ei_in(cpu: &mut Cpu) -> i32 {
+fn ei_in(cpu: &mut Cpu) {
     cpu.enabling_ime = true;
-
-    0
 }
 
-fn rlca_in(cpu: &mut Cpu) -> i32 {
+fn rlca_in(cpu: &mut Cpu) {
     let mut reg_a = cpu.regs.a;
     let flag_c = (reg_a >> 7) & 1 != 0;
 
@@ -589,32 +531,27 @@ fn rlca_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.a = reg_a;
 
     cpu.regs._set_flags(false, false, false, flag_c);
-
-    0
 }
 
-fn rrca_in(cpu: &mut Cpu) -> i32 {
+fn rrca_in(cpu: &mut Cpu) {
     let res = cpu.regs.a & 1;
     cpu.regs.a >>= 1;
     cpu.regs.a |= res << 7;
 
     cpu.regs._set_flags(false, false, false, res != 0);
 
-    0
 }
 
-fn rla_in(cpu: &mut Cpu) -> i32 {
+fn rla_in(cpu: &mut Cpu) {
     let tmp = cpu.regs.a;
     let flag_c = cpu.regs.flag_c() as u8;
     let c = (tmp >> 7) | 1;
 
     cpu.regs.a = (tmp << 1) | flag_c;
     cpu.regs._set_flags(false, false, false, c != 0);
-
-    0
 }
 
-fn rra_in(cpu: &mut Cpu) -> i32 {
+fn rra_in(cpu: &mut Cpu) {
     let carry = cpu.regs.flag_c() as u8;
     let new_carry = cpu.regs.a & 1;
 
@@ -625,15 +562,13 @@ fn rra_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, false);
     cpu.regs.set_flag(Flag::C, new_carry != 0);
-
-    0
 }
 
-fn stop_in(_cpu: &mut Cpu) -> i32 {
+fn stop_in(_cpu: &mut Cpu) {
     panic!("STOP INSTRUCTION PROCESS");
 }
 
-fn daa_in(cpu: &mut Cpu) -> i32 {
+fn daa_in(cpu: &mut Cpu) {
     let mut adjust = 0;
     let mut carry = false;
 
@@ -655,39 +590,29 @@ fn daa_in(cpu: &mut Cpu) -> i32 {
     cpu.regs.set_flag(Flag::Z, cpu.regs.a == 0);
     cpu.regs.set_flag(Flag::H, false);
     cpu.regs.set_flag(Flag::C, carry);
-
-    0
 }
 
-fn cpl_in(cpu: &mut Cpu) -> i32 {
+fn cpl_in(cpu: &mut Cpu) {
     cpu.regs.a = !cpu.regs.a;
 
     cpu.regs.set_flag(Flag::N, true);
     cpu.regs.set_flag(Flag::H, true);
-
-    0
 }
 
-fn scf_in(cpu: &mut Cpu) -> i32 {
+fn scf_in(cpu: &mut Cpu) {
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, false);
     cpu.regs.set_flag(Flag::C, true);
-
-    0
 }
 
-fn ccf_in(cpu: &mut Cpu) -> i32 {
+fn ccf_in(cpu: &mut Cpu) {
     let flag_c = cpu.regs.flag_c();
 
     cpu.regs.set_flag(Flag::N, false);
     cpu.regs.set_flag(Flag::H, false);
     cpu.regs.set_flag(Flag::C, !flag_c);
-
-    0
 }
 
-fn halt_in(cpu: &mut Cpu) -> i32 {
+fn halt_in(cpu: &mut Cpu) {
     cpu.is_halted = true;
-
-    0
 }

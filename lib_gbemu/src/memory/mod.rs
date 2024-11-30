@@ -12,14 +12,18 @@
 // 0xFF00 - 0xFF7F : I/O Registers
 // 0xFF80 - 0xFFFE : Zero Page
 
+mod dma;
 pub mod interrupts;
 pub mod ram;
 use self::interrupts::*;
 
+use self::dma::Dma;
 use self::ram::Ram;
 use crate::cartridge::rom::Rom;
-use crate::io::timer::Timer;
+use crate::emu::Emu;
+use crate::gpu::lcd::Lcd;
 use crate::gpu::ppu::Ppu;
+use crate::io::timer::Timer;
 
 #[derive(Debug)]
 pub struct Bus {
@@ -28,7 +32,10 @@ pub struct Bus {
     rom: Rom,
     ram: Ram,
     ppu: Ppu,
-    pub timer: Timer,
+    dma: Dma,
+    lcd: Lcd,
+    pub emu: Emu,
+    timer: Timer,
     serial_data: [u8; 2],
 }
 
@@ -36,15 +43,27 @@ impl Bus {
     pub const fn new(rom: Rom) -> Self {
         Self {
             ppu: Ppu::new(),
+            lcd: Lcd::new(),
             rom,
+            dma: Dma::start(0),
             ram: Ram::new(),
+            emu: Emu::new(),
             interrupts: InterruptState::new(),
             timer: Timer::new(),
             serial_data: [0; 2],
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn cycle(&mut self, cycles: i32) {
+        for _ in 0..cycles {
+            for _ in 0..4 {
+                self.emu.ticks = self.emu.ticks.wrapping_add(1);
+                self.timer.tick();
+            }
+
+            self.dma_tick();
+        }
+
         self.interrupts.flags |= self.timer.interrupts;
         self.timer.interrupts = 0;
     }
@@ -65,7 +84,12 @@ impl Bus {
                 0
             }
             // OAM
-            0xFE00..0xFEA0 => self.ppu.oam_read(address),
+            0xFE00..0xFEA0 => {
+                if self.dma.is_transfering() {
+                    return 0xFF;
+                }
+                self.ppu.oam_read(address)
+            }
             // Reserved unusable
             0xFEA0..0xFF00 => {
                 eprintln!("UNSUPPORTED BUS READ {:04X}", address);
@@ -73,12 +97,12 @@ impl Bus {
             }
             // IO Registers
             0xFF00..0xFF80 => {
-                // println!("IO READ: {:04X}", address);
                 match address {
                     0xFF01 => self.serial_data[0],
                     0xFF02 => self.serial_data[1],
                     0xFF04..=0xFF07 => self.timer.read(address),
                     0xFF0F => self.interrupts.flags,
+                    0xFF40..=0xFF4B => self.lcd.read(address),
                     _ => {
                         eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                         0
@@ -118,17 +142,20 @@ impl Bus {
             0xFE00..0xFEA0 => self.ppu.oam_write(address, value),
             // Reserved unusable
             0xFEA0..0xFF00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
-            // IO Registers 0xFF00..0xFF80
-            0xFF00..0xFF80 => {
-                // println!("IO WRITE: {:04X}, {:02X}", address, value);
-                match address {
-                    0xFF01 => self.serial_data[0] = value,
-                    0xFF02 => self.serial_data[1] = value,
-                    0xFF04..=0xFF07 => self.timer.write(address, value),
-                    0xFF0F => self.interrupts.flags = value,
-                    _ => eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
+            // IO Registers
+            0xFF00..0xFF80 => match address {
+                0xFF01 => self.serial_data[0] = value,
+                0xFF02 => self.serial_data[1] = value,
+                0xFF04..=0xFF07 => self.timer.write(address, value),
+                0xFF0F => self.interrupts.flags = value,
+                0xFF40..=0xFF4B => {
+                    if address == 0xFF46 {
+                        self.dma = Dma::start(value);
+                    }
+                    self.lcd.write(address, value);
                 }
-            }
+                _ => eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
+            },
             // CPU SET ENABLE REGISTER
             0xFFFF => self.interrupts.enabled = value,
             _ => self.ram.hram_write(address, value),

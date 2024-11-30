@@ -1,5 +1,3 @@
-use crate::io::timer::Timer;
-
 #[derive(Debug)]
 pub struct Emu {
     pub die: bool,
@@ -15,15 +13,6 @@ impl Emu {
             paused: false,
             running: false,
             ticks: 0,
-        }
-    }
-
-    pub fn cycle(&mut self, timer: &mut Timer, cycles: i32) {
-        let time = cycles * 4;
-
-        for _ in 0..time {
-            self.ticks += 1;
-            timer.tick();
         }
     }
 }

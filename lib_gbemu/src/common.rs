@@ -15,8 +15,7 @@ pub fn debug_write(data: &str) {
     if DEBUG_OUTPUT {
         let file = OpenOptions::new()
             .create(true)
-            .write(true)
-            .truncate(true)
+            .append(true)
             .open(DEBUG_FILE);
 
         if let Ok(mut f) = file {

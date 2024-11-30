@@ -7,6 +7,13 @@ use crate::SCALE;
 
 const DEBUG: bool = false;
 
+const TILE_COLORS: [Color; 4] = [
+    Color::RGB(255, 255, 255),
+    Color::RGB(175, 175, 175),
+    Color::RGB(85, 85, 85),
+    Color::RGB(0, 0, 0),
+];
+
 pub fn display_tile(
     bus: &Bus,
     canvas: &mut Canvas<Window>,
@@ -15,13 +22,6 @@ pub fn display_tile(
     x: u32,
     y: u32,
 ) {
-    const TILE_COLORS: [Color; 4] = [
-        Color::WHITE,
-        Color::RGB(175, 175, 175), // Grey1
-        Color::RGB(85, 85, 85),    // Grey2
-        Color::BLACK,
-    ];
-
     for tile_y in (0..16).step_by(2) {
         let byte1: u8 = bus.read(address + (tile_num * 16) + tile_y);
         let byte2: u8 = bus.read(address + (tile_num * 16) + tile_y + 1);
@@ -32,12 +32,13 @@ pub fn display_tile(
                 tile_num, byte1, byte2
             );
         }
-        
-        for bit in (0..7).rev() {
-            let hi = !!(byte1 & (1 << bit)) << 1;
-            let lo = !!(byte2 & (1 << bit));
 
-            let color = TILE_COLORS[if (hi | lo) >= 4 { 0 } else { hi | lo } as usize];
+        for bit in (0..7).rev() {
+            let hi = (((byte1 & (1 << bit)) != 0) as u8) << 1;
+            let lo = ((byte2 & (1 << bit)) != 0) as u8;
+
+            let color_idx = hi | lo;
+            let color = TILE_COLORS[color_idx as usize];
 
             // draw rectangle
             let rect_x: i32 = (x + (7 - bit) * SCALE) as i32;

@@ -7,7 +7,6 @@ mod gbscreen;
 use lib_gbemu::cartridge::rom::Rom;
 use lib_gbemu::cpu::Cpu;
 use lib_gbemu::debug::GBDebug;
-use lib_gbemu::emu::Emu;
 use lib_gbemu::memory::Bus;
 
 use sdl2::event::{Event, WindowEvent};
@@ -22,9 +21,16 @@ use std::sync::{Arc, Condvar, Mutex};
 
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
-const SCALE: u32 = 2;
+const SCALE: u32 = 3;
 
-struct Emulator(Cpu, Bus, Emu);
+const DBG_H_TYLES: u32 = 16;
+const DBG_W_TYLES: u32 = 32;
+const DBG_SCREEN_WIDTH: u32 = (DBG_H_TYLES * 8 * SCALE) + (DBG_H_TYLES * SCALE);
+const DBG_SCREEN_HEIGHT: u32 = (DBG_W_TYLES * 8 * SCALE) + (DBG_W_TYLES * SCALE);
+const DBG_H_ENUM: std::ops::Range<u32> = 0..16;
+const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
+
+struct Emulator(Cpu, Bus);
 
 fn debug_ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
     let mut x_draw = 0;
@@ -33,9 +39,8 @@ fn debug_ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
 
     let address = 0x8000;
 
-    // 384 tiles -> 24 * 16
-    for tile_y in 0..24 {
-        for tile_x in 0..16 {
+    for tile_y in DBG_W_ENUM {
+        for tile_x in DBG_H_ENUM {
             gbscreen::display_tile(
                 bus,
                 canvas,
@@ -67,8 +72,8 @@ fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
     let debug_window = video_subsystem
         .window(
             "DEBUG",
-            (16 * 8 * SCALE) + (16 * SCALE),
-            (32 * 8 * SCALE) + (64 * SCALE),
+            DBG_SCREEN_WIDTH,
+            DBG_SCREEN_HEIGHT,
         )
         .position(
             window.position().0 + window.size().0 as i32,
@@ -92,21 +97,18 @@ fn create_emu(path: String) -> Result<Emulator, Box<dyn Error>> {
 
     let cpu = Cpu::new();
     let bus = Bus::new(rom);
-    let emu = Emu::new();
 
-    Ok(Emulator(cpu, bus, emu))
+    Ok(Emulator(cpu, bus))
 }
 
-fn emu_step(cpu: &mut Cpu, bus: &mut Bus, emu: &mut Emu, debug: &mut GBDebug) -> bool {
-    if emu.paused {
+fn emu_step(cpu: &mut Cpu, bus: &mut Bus, debug: &mut GBDebug) -> bool {
+    if bus.emu.paused {
         return true;
     }
 
-    let cycles = cpu.step(emu, bus);
+    cpu.step(bus);
     debug.update(bus);
     debug.print();
-    emu.cycle(&mut bus.timer, cycles);
-    bus.step();
 
     true
 }
@@ -116,7 +118,7 @@ fn main() {
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
 
-    let Emulator(cpu, bus, emu) = create_emu(path).unwrap();
+    let Emulator(cpu, bus) = create_emu(path).unwrap();
     let bus = Arc::new((Mutex::new(bus), Condvar::new()));
 
     let (mut canvas, mut debug_canvas, mut event_pump) = ui_init();
@@ -133,12 +135,11 @@ fn main() {
     std::thread::spawn(move || {
         let mut cpu = cpu;
         let (bus_lock, condvar) = &*bus_clone;
-        let mut emu = emu;
         let mut debug = GBDebug::new();
         loop {
             let mut bus = bus_lock.lock().unwrap();
 
-            if !emu_step(&mut cpu, &mut bus, &mut emu, &mut debug) {
+            if !emu_step(&mut cpu, &mut bus, &mut debug) {
                 return;
             }
 
