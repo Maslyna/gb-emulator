@@ -15,6 +15,17 @@ impl Emu {
             ticks: 0,
         }
     }
+
+    pub fn delay(milis: u64) {
+        std::thread::sleep(std::time::Duration::from_millis(milis));
+    }
+
+    pub fn get_ticks() -> u64 {
+        let now = std::time::SystemTime::now();
+        now.duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+    }
 }
 
 impl Default for Emu {

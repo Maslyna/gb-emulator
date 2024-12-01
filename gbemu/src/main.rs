@@ -23,6 +23,7 @@ const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const SCALE: u32 = 3;
 
+const DGB_SERIAL: bool = false;
 const DBG_H_TYLES: u32 = 16;
 const DBG_W_TYLES: u32 = 32;
 const DBG_SCREEN_WIDTH: u32 = (DBG_H_TYLES * 8 * SCALE) + (DBG_H_TYLES * SCALE);
@@ -70,11 +71,7 @@ fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
         .build()
         .unwrap();
     let debug_window = video_subsystem
-        .window(
-            "DEBUG",
-            DBG_SCREEN_WIDTH,
-            DBG_SCREEN_HEIGHT,
-        )
+        .window("DEBUG", DBG_SCREEN_WIDTH, DBG_SCREEN_HEIGHT)
         .position(
             window.position().0 + window.size().0 as i32,
             window.position().1,
@@ -107,8 +104,11 @@ fn emu_step(cpu: &mut Cpu, bus: &mut Bus, debug: &mut GBDebug) -> bool {
     }
 
     cpu.step(bus);
-    debug.update(bus);
-    debug.print();
+
+    if DGB_SERIAL {
+        debug.update(bus);
+        debug.print();
+    }
 
     true
 }
@@ -147,6 +147,8 @@ fn main() {
         }
     });
 
+    let mut prev_frame: u32 = 0;
+
     'gb_loop: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -166,6 +168,10 @@ fn main() {
         let bus = bus_lock.lock().unwrap();
         let bus = condvar.wait(bus).unwrap();
 
-        debug_ui_update(&mut debug_canvas, &bus);
+        if prev_frame != bus.ppu.current_frame {
+            debug_ui_update(&mut debug_canvas, &bus);
+        }
+
+        prev_frame = bus.ppu.current_frame;
     }
 }

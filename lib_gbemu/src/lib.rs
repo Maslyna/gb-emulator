@@ -1,3 +1,5 @@
+extern crate core;
+
 #[macro_use]
 pub mod macros;
 pub mod cartridge;

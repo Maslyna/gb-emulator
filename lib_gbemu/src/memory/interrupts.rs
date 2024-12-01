@@ -6,7 +6,7 @@ pub const _INTERRUPT_FLAGS_ADDRESS: u16 = 0xFF0F;
 
 #[derive(Clone, Copy)]
 pub enum Interrupt {
-    Vblank = 0x01,
+    VBlank = 0x01,
     LcdStat = 0x02,
     Timer = 0x04,
     Serial = 0x08,
@@ -16,7 +16,7 @@ pub enum Interrupt {
 impl Interrupt {
     fn address(self) -> u16 {
         match self {
-            Interrupt::Vblank => 0x0040,
+            Interrupt::VBlank => 0x0040,
             Interrupt::LcdStat => 0x0048,
             Interrupt::Timer => 0x0050,
             Interrupt::Serial => 0x0058,
@@ -62,7 +62,7 @@ impl Default for InterruptState {
 
 pub fn handle_interrupts(cpu: &mut Cpu, bus: &mut Bus) {
     const INTERRUPTS: [Interrupt; 5] = [
-        Interrupt::Vblank,
+        Interrupt::VBlank,
         Interrupt::LcdStat,
         Interrupt::Timer,
         Interrupt::Serial,

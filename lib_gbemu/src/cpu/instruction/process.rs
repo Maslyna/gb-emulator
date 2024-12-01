@@ -185,7 +185,7 @@ fn inc_in(cpu: &mut Cpu, bus: &mut Bus) {
 }
 
 fn dec_in(cpu: &mut Cpu, bus: &mut Bus) {
-    let mut val = cpu.read_reg(cpu.cur_inst.r1) - 1;
+    let mut val = cpu.read_reg(cpu.cur_inst.r1).wrapping_sub(1);
 
     if cpu.cur_inst.r1.is_16bit() {
         bus.cycle(1);
@@ -565,7 +565,7 @@ fn rra_in(cpu: &mut Cpu) {
 }
 
 fn stop_in(_cpu: &mut Cpu) {
-    panic!("STOP INSTRUCTION PROCESS");
+    // panic!("STOP INSTRUCTION PROCESS");
 }
 
 fn daa_in(cpu: &mut Cpu) {

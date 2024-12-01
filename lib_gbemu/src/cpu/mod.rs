@@ -55,10 +55,6 @@ impl Cpu {
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        if self.regs.pc == 0xC365 {
-            println!("STOP");
-        }
-
         if !self.is_halted {
             self.fetch_instruction(bus);
 
@@ -266,7 +262,7 @@ impl Cpu {
 
     fn stack_pop(&mut self, bus: &Bus) -> u8 {
         let res = bus.read(self.regs.sp);
-        self.regs.sp += 1;
+        self.regs.sp = self.regs.sp.wrapping_add(1);
 
         res
     }

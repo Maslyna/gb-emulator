@@ -16,7 +16,7 @@ pub enum CartrigeError {
 
 #[derive(Debug)]
 pub struct Rom {
-    rom_data: Box<[u8]>
+    data: Box<[u8]>
 }
 
 #[derive(Debug)]
@@ -45,7 +45,7 @@ impl Rom {
         let header = Header::new(&buffer);
 
         let rom = Rom {
-            rom_data: buffer.into_boxed_slice(),
+            data: buffer.into_boxed_slice(),
         };
 
         match rom.is_checksum_valid(&header) {
@@ -55,7 +55,10 @@ impl Rom {
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        self.rom_data[address as usize]
+        if address as usize > self.data.len() {
+            return 0;
+        }
+        self.data[address as usize]
     }
 
     pub fn write(&mut self, _address: u16, _value: u8) {
@@ -65,7 +68,7 @@ impl Rom {
     fn calculate_cecksum(&self) -> u8 {
         let mut x: u16 = 0;
         for i in 0x0134..=0x014C {
-            x = x.wrapping_sub(self.rom_data[i] as u16).wrapping_sub(1);
+            x = x.wrapping_sub(self.data[i] as u16).wrapping_sub(1);
         }
         x as u8
     }

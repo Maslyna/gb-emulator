@@ -21,7 +21,6 @@ use self::dma::Dma;
 use self::ram::Ram;
 use crate::cartridge::rom::Rom;
 use crate::emu::Emu;
-use crate::gpu::lcd::Lcd;
 use crate::gpu::ppu::Ppu;
 use crate::io::timer::Timer;
 
@@ -31,19 +30,17 @@ pub struct Bus {
 
     rom: Rom,
     ram: Ram,
-    ppu: Ppu,
+    pub ppu: Ppu,
     dma: Dma,
-    lcd: Lcd,
     pub emu: Emu,
     timer: Timer,
     serial_data: [u8; 2],
 }
 
 impl Bus {
-    pub const fn new(rom: Rom) -> Self {
+    pub fn new(rom: Rom) -> Self {
         Self {
             ppu: Ppu::new(),
-            lcd: Lcd::new(),
             rom,
             dma: Dma::start(0),
             ram: Ram::new(),
@@ -59,6 +56,7 @@ impl Bus {
             for _ in 0..4 {
                 self.emu.ticks = self.emu.ticks.wrapping_add(1);
                 self.timer.tick();
+                self.ppu.tick();
             }
 
             self.dma_tick();
@@ -66,6 +64,9 @@ impl Bus {
 
         self.interrupts.flags |= self.timer.interrupts;
         self.timer.interrupts = 0;
+
+        self.interrupts.flags |= self.ppu.interrupts;
+        self.ppu.interrupts = 0; 
     }
 
     pub fn read(&self, address: u16) -> u8 {
@@ -96,19 +97,17 @@ impl Bus {
                 0
             }
             // IO Registers
-            0xFF00..0xFF80 => {
-                match address {
-                    0xFF01 => self.serial_data[0],
-                    0xFF02 => self.serial_data[1],
-                    0xFF04..=0xFF07 => self.timer.read(address),
-                    0xFF0F => self.interrupts.flags,
-                    0xFF40..=0xFF4B => self.lcd.read(address),
-                    _ => {
-                        eprintln!("UNSUPPORTED BUS READ {:04X}", address);
-                        0
-                    }
+            0xFF00..0xFF80 => match address {
+                0xFF01 => self.serial_data[0],
+                0xFF02 => self.serial_data[1],
+                0xFF04..=0xFF07 => self.timer.read(address),
+                0xFF0F => self.interrupts.flags,
+                0xFF40..=0xFF4B => self.ppu.lcd.read(address),
+                _ => {
+                    eprintln!("UNSUPPORTED BUS READ {:04X}", address);
+                    0
                 }
-            }
+            },
             // CPU ENABLED REGISTERS
             interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             _ => self.ram.hram_read(address),
@@ -152,7 +151,7 @@ impl Bus {
                     if address == 0xFF46 {
                         self.dma = Dma::start(value);
                     }
-                    self.lcd.write(address, value);
+                    self.ppu.lcd.write(address, value);
                 }
                 _ => eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
             },

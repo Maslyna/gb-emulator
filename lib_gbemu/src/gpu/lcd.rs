@@ -1,37 +1,26 @@
-const TILE_COLORS: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
+use super::{LcdMode, StatInterruptSource};
 
-pub enum LcdMode {
-    HBlank,
-    VBlank,
-    Oam,
-    Xfer,
-}
-
-pub enum StatInterruptSource {
-    HBlank = (1 << 3),
-    VBlank = (1 << 4),
-    Oam = (1 << 5),
-    Lyc = (1 << 6),
-}
+const PALETTE_COLORS: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
 
 #[allow(dead_code)]
 #[derive(Debug)]
+#[repr(C)]
 pub struct Lcd {
-    lcdc: u8,
-    lcds: u8,
-    scroll_y: u8,
-    scrool_x: u8,
-    ly: u8,
-    ly_compare: u8,
-    dma: u8,
-    bg_palette: u8,
-    obj_palette: u8,
-    win_x: u8,
-    win_y: u8,
+    pub lcdc: u8,
+    pub lcds: u8,
+    pub scroll_y: u8,
+    pub scroll_x: u8,
+    pub ly: u8,
+    pub ly_compare: u8,
+    pub dma: u8,
+    pub bg_palette: u8,
+    pub obj_palette: u8,
+    pub win_x: u8,
+    pub win_y: u8,
 
-    bg_colors: [u32; 4],
-    sp1_colors: [u32; 4],
-    sp2_colors: [u32; 4],
+    pub bg_colors: [u32; 4],
+    pub sp1_colors: [u32; 4],
+    pub sp2_colors: [u32; 4],
 }
 
 enum Pallete {
@@ -41,11 +30,11 @@ enum Pallete {
 }
 
 impl Lcd {
-    pub const fn new() -> Self {
-        Self {
+    pub fn new() -> Self {
+        let mut lcd = Self {
             lcdc: 0x91,
             lcds: 0,
-            scrool_x: 0,
+            scroll_x: 0,
             scroll_y: 0,
             ly: 0,
             ly_compare: 0,
@@ -54,10 +43,14 @@ impl Lcd {
             obj_palette: 0xFF,
             win_x: 0,
             win_y: 0,
-            bg_colors: TILE_COLORS,
-            sp1_colors: TILE_COLORS,
-            sp2_colors: TILE_COLORS,
-        }
+            bg_colors: PALETTE_COLORS,
+            sp1_colors: PALETTE_COLORS,
+            sp2_colors: PALETTE_COLORS,
+        };
+
+        lcd.set_mode(LcdMode::Oam);
+
+        lcd
     }
 
     pub fn read(&self, address: u16) -> u8 {
@@ -94,7 +87,7 @@ impl Lcd {
         set_bit!(self.lcds, 2, value);
     }
 
-    pub fn is_bgw(&self) -> bool {
+    pub fn is_bgw_enabled(&self) -> bool {
         bit!(self.lcdc, 0)
     }
 
@@ -171,7 +164,7 @@ impl Lcd {
             .iter_mut()
             .enumerate()
             .for_each(|(i, color)| {
-                *color = TILE_COLORS[((data >> (i * 2)) & 0b0000_0011) as usize];
+                *color = PALETTE_COLORS[((data >> (i * 2)) & 0b0000_0011) as usize];
             });
     }
 }
