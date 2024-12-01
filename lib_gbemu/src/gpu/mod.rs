@@ -1,6 +1,10 @@
 pub mod ppu;
 pub mod lcd;
 
+const COLORS_DEFAULT: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
+pub const X_RES: u32 = 160;
+pub const Y_RES: u32 = 144;
+
 pub enum LcdMode {
     HBlank,
     VBlank,

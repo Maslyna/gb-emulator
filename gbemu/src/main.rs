@@ -19,6 +19,8 @@ use std::env;
 use std::error::Error;
 use std::sync::{Arc, Condvar, Mutex};
 
+use lib_gbemu::gpu::{X_RES, Y_RES};
+
 const SCREEN_WIDTH: u32 = 800;
 const SCREEN_HEIGHT: u32 = 600;
 const SCALE: u32 = 3;
@@ -32,6 +34,31 @@ const DBG_H_ENUM: std::ops::Range<u32> = 0..16;
 const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
 
 struct Emulator(Cpu, Bus);
+
+fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
+    fn color_from_u32(argb: u32) -> Color {
+        let a = ((argb >> 24) & 0xFF) as u8;
+        let r = ((argb >> 16) & 0xFF) as u8;
+        let g = ((argb >> 8) & 0xFF) as u8;
+        let b = (argb & 0xFF) as u8;
+
+        Color::RGBA(r, g, b, a)
+    }
+    let buffer = &bus.ppu.video_buffer;
+
+    for line in 0..Y_RES {
+        for x in 0..X_RES {
+            let rect =
+                sdl2::rect::Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
+            let color = color_from_u32(buffer[(x + (line * X_RES)) as usize]);
+
+            canvas.set_draw_color(color);
+            canvas.fill_rect(rect).unwrap();
+        }
+    }
+
+    canvas.present();
+}
 
 fn debug_ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
     let mut x_draw = 0;
@@ -169,6 +196,7 @@ fn main() {
         let bus = condvar.wait(bus).unwrap();
 
         if prev_frame != bus.ppu.current_frame {
+            ui_update(&mut canvas, &bus);
             debug_ui_update(&mut debug_canvas, &bus);
         }
 

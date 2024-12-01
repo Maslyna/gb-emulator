@@ -56,7 +56,7 @@ impl Bus {
             for _ in 0..4 {
                 self.emu.ticks = self.emu.ticks.wrapping_add(1);
                 self.timer.tick();
-                self.ppu.tick();
+                self.ppu_tick();
             }
 
             self.dma_tick();
@@ -122,10 +122,6 @@ impl Bus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
-        debug!("Write in bus: {address:04X}, value: {value:02X}");
-        if address == 0xFF02 && value == 0x81 {
-            println!("BREAKPOINT");
-        }
         match address {
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),

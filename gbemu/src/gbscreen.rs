@@ -7,7 +7,7 @@ use crate::SCALE;
 
 const DEBUG: bool = false;
 
-const TILE_COLORS: [Color; 4] = [
+pub const TILE_COLORS: [Color; 4] = [
     Color::RGB(255, 255, 255),
     Color::RGB(175, 175, 175),
     Color::RGB(85, 85, 85),

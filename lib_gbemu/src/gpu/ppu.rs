@@ -3,14 +3,15 @@ use super::LcdMode;
 use super::StatInterruptSource;
 use crate::emu::Emu;
 use crate::memory::interrupts::Interrupt;
+use crate::memory::Bus;
 
-use core::ptr::NonNull;
+use std::sync::Arc;
 use std::collections::LinkedList;
+
+use super::{Y_RES, X_RES};
 
 const LINES_PER_FRAME: u32 = 154;
 const TICKS_PER_LINE: u32 = 456;
-const X_RES: u32 = 160;
-const Y_RES: u32 = 144;
 const FRAME_BUFFER_SIZE: usize = (X_RES * Y_RES) as usize;
 
 #[derive(Debug)]
@@ -24,7 +25,7 @@ enum FetchState {
 
 #[derive(Debug)]
 struct FifoEntry {
-    next: Option<NonNull<FifoEntry>>,
+    next: Option<Arc<FifoEntry>>,
     value: u32,
 }
 
@@ -74,7 +75,7 @@ pub struct Ppu {
 
     pub current_frame: u32,
     line_ticks: u32,
-    video_buffer: Box<[u32; FRAME_BUFFER_SIZE]>,
+    pub video_buffer: Box<[u32; FRAME_BUFFER_SIZE]>,
 
     pub target_frame_time: u64,
     pub prev_frame_time: u64,
@@ -97,17 +98,6 @@ impl Ppu {
             start_time: 0,
             frame_count: 0,
             pfc: PixelContext::new(),
-        }
-    }
-
-    pub fn tick(&mut self) {
-        self.line_ticks += 1;
-
-        match self.lcd.get_mode() {
-            LcdMode::HBlank => self.mode_hblank(),
-            LcdMode::VBlank => self.mode_vblank(),
-            LcdMode::Oam => self.mode_oam(),
-            LcdMode::Xfer => self.mode_xfer(),
         }
     }
 
@@ -141,79 +131,6 @@ impl Ppu {
 
     pub fn vram_read(&self, address: u16) -> u8 {
         self.vram[address.wrapping_sub(0x8000) as usize]
-    }
-
-    fn mode_oam(&mut self) {
-        if self.line_ticks >= 80 {
-            self.lcd.set_mode(LcdMode::Xfer);
-
-            self.pfc.fetch_state = FetchState::Tile;
-            self.pfc.line_x = 0;
-            self.pfc.fetch_x = 0;
-            self.pfc.pushed_x = 0;
-            self.pfc.fifo_x = 0;
-        }
-    }
-
-    fn mode_xfer(&mut self) {
-        if self.pfc.pushed_x as u32 >= X_RES {
-            self.lcd.set_mode(LcdMode::HBlank);
-
-            if self.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {
-                self.set_interrupt(Interrupt::LcdStat);
-            }
-        }
-    }
-
-    fn mode_hblank(&mut self) {
-        if self.line_ticks >= TICKS_PER_LINE {
-            self.increment_ly();
-
-            if self.lcd.ly as u32 >= Y_RES {
-                self.lcd.set_mode(LcdMode::VBlank);
-                self.set_interrupt(Interrupt::VBlank);
-
-                if self.lcd.get_stat_interrupt(StatInterruptSource::VBlank) != 0 {
-                    self.set_interrupt(Interrupt::LcdStat);
-                }
-
-                // TODO: into Screen trait
-                let end = Emu::get_ticks();
-                let frame_time = end.wrapping_sub(self.prev_frame_time);
-
-                if frame_time < self.target_frame_time {
-                    Emu::delay(self.target_frame_time - frame_time);
-                }
-
-                if end - self.start_time >= 1000 {
-                    let fps = self.frame_count;
-                    self.start_time = end;
-                    self.frame_count = 0;
-
-                    println!("FPS: {fps}");
-                }
-
-                self.current_frame += 1;
-                self.prev_frame_time = Emu::get_ticks();
-            } else {
-                self.lcd.set_mode(LcdMode::Oam);
-            }
-
-            self.line_ticks = 0;
-        }
-    }
-
-    fn mode_vblank(&mut self) {
-        if self.line_ticks >= TICKS_PER_LINE {
-            self.lcd.ly += 1;
-
-            if self.lcd.ly as u32 >= LINES_PER_FRAME {
-                self.lcd.ly = 0;
-                self.lcd.set_mode(LcdMode::Oam);
-            }
-
-            self.line_ticks = 0;
-        }
     }
 
     pub fn increment_ly(&mut self) {
@@ -263,38 +180,177 @@ impl Ppu {
         }
     }
 
-    fn fetch_pipeline(&mut self) {
-        match self.pfc.fetch_state {
+    fn add_pipeline_fifo(&mut self) -> bool {
+        if self.pfc.pixel_info.len() > 8 {
+            return false;
+        }
+
+        let x_offset = 8 - (self.lcd.scroll_x % 8);
+        let start_x = self.pfc.fetch_x.wrapping_sub(x_offset) as i8;
+
+        for bit in (0..8).rev() {
+            let lo: u8 = (self.pfc.background_fetch_data[1] & (1 << bit) != 0) as u8;
+            let hi: u8 = ((self.pfc.background_fetch_data[2] & (1 << bit)) << 1 != 0) as u8;
+            let color = self.lcd.bg_colors[(hi | lo) as usize];
+
+            if start_x >= 0 {
+                self.push_pixel_fifo(color);
+                self.pfc.fifo_x += 1;
+            }
+        }
+
+        true
+    }
+
+    fn reset_pipeline_fifo(&mut self) {
+        self.pfc.pixel_info.clear();
+    }
+}
+
+impl Bus {
+    pub fn ppu_tick(&mut self) {
+        self.ppu.line_ticks += 1;
+
+        match self.ppu.lcd.get_mode() {
+            LcdMode::HBlank => self.mode_hblank(),
+            LcdMode::VBlank => self.mode_vblank(),
+            LcdMode::Oam => self.mode_oam(),
+            LcdMode::Xfer => self.mode_xfer(),
+        }
+    }
+
+    fn fetch_ppu_pipeline(&mut self) {
+        match self.ppu.pfc.fetch_state {
             FetchState::Tile => {
-                if self.lcd.is_bgw_enabled() {
-                    self.pfc.background_fetch_data[0] = 
+                if self.ppu.lcd.is_bgw_enabled() {
+                    let address = self.ppu.lcd.bg_map_area()
+                        + (self.ppu.pfc.map_x as u16 / 8)
+                        + ((self.ppu.pfc.map_y as u16 / 8) * 32);
+                    self.ppu.pfc.background_fetch_data[0] = self.read(address);
+
+                    if self.ppu.lcd.bwg_data_area() == 0x8800 {
+                        self.ppu.pfc.background_fetch_data[0] =
+                            self.ppu.pfc.background_fetch_data[0].wrapping_add(128);
+                    }
                 }
-            },
+
+                self.ppu.pfc.fetch_state = FetchState::Data0;
+                self.ppu.pfc.fetch_x = self.ppu.pfc.fetch_x.wrapping_add(8);
+            }
             FetchState::Data0 => {
-                
-            },
+                let address = self.ppu.lcd.bwg_data_area()
+                    + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
+                    + self.ppu.pfc.tile_y as u16;
+                self.ppu.pfc.background_fetch_data[1] = self.read(address);
+
+                self.ppu.pfc.fetch_state = FetchState::Data1;
+            }
             FetchState::Data1 => {
-                
-            },
+                let address = self.ppu.lcd.bwg_data_area()
+                    + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
+                    + self.ppu.pfc.tile_y as u16
+                    + 1;
+                self.ppu.pfc.background_fetch_data[2] = self.read(address);
+
+                self.ppu.pfc.fetch_state = FetchState::Idle;
+            }
             FetchState::Idle => {
-                
-            },
+                self.ppu.pfc.fetch_state = FetchState::Push;
+            }
             FetchState::Push => {
-                
-            },
+                if self.ppu.add_pipeline_fifo() {
+                    self.ppu.pfc.fetch_state = FetchState::Tile;
+                }
+            }
         };
     }
 
     fn process_pipeline(&mut self) {
-        self.pfc.map_y = self.lcd.ly + self.lcd.scroll_y;
-        self.pfc.map_x = self.pfc.fetch_x + self.lcd.scroll_x;
-        self.pfc.tile_y = ((self.lcd.ly + self.lcd.scroll_y) % 8) * 2;
+        self.ppu.pfc.map_y = self.ppu.lcd.ly + self.ppu.lcd.scroll_y;
+        self.ppu.pfc.map_x = self.ppu.pfc.fetch_x + self.ppu.lcd.scroll_x;
+        self.ppu.pfc.tile_y = ((self.ppu.lcd.ly + self.ppu.lcd.scroll_y) % 8) * 2;
 
-        if (self.line_ticks & 1) == 0 {
-            self.fetch_pipeline();
+        if (self.ppu.line_ticks & 1) == 0 {
+            self.fetch_ppu_pipeline();
         }
 
-        self.pipeline_push_pixel();
+        self.ppu.pipeline_push_pixel();
+    }
+
+    fn mode_oam(&mut self) {
+        if self.ppu.line_ticks >= 80 {
+            self.ppu.lcd.set_mode(LcdMode::Xfer);
+
+            self.ppu.pfc.fetch_state = FetchState::Tile;
+            self.ppu.pfc.line_x = 0;
+            self.ppu.pfc.fetch_x = 0;
+            self.ppu.pfc.pushed_x = 0;
+            self.ppu.pfc.fifo_x = 0;
+        }
+    }
+
+    fn mode_xfer(&mut self) {
+        self.process_pipeline();
+
+        if self.ppu.pfc.pushed_x as u32 >= X_RES {
+            self.ppu.reset_pipeline_fifo();
+            self.ppu.lcd.set_mode(LcdMode::HBlank);
+
+            if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {
+                self.ppu.set_interrupt(Interrupt::LcdStat);
+            }
+        }
+    }
+
+    fn mode_hblank(&mut self) {
+        if self.ppu.line_ticks >= TICKS_PER_LINE {
+            self.ppu.increment_ly();
+
+            if self.ppu.lcd.ly as u32 >= Y_RES {
+                self.ppu.lcd.set_mode(LcdMode::VBlank);
+                self.ppu.set_interrupt(Interrupt::VBlank);
+
+                if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::VBlank) != 0 {
+                    self.ppu.set_interrupt(Interrupt::LcdStat);
+                }
+
+                // TODO: into Screen trait
+                let end = Emu::get_ticks();
+                let frame_time = end.wrapping_sub(self.ppu.prev_frame_time);
+
+                if frame_time < self.ppu.target_frame_time {
+                    Emu::delay(self.ppu.target_frame_time - frame_time);
+                }
+
+                if end - self.ppu.start_time >= 1000 {
+                    let fps = self.ppu.frame_count;
+                    self.ppu.start_time = end;
+                    self.ppu.frame_count = 0;
+
+                    println!("FPS: {fps}");
+                }
+
+                self.ppu.current_frame += 1;
+                self.ppu.prev_frame_time = Emu::get_ticks();
+            } else {
+                self.ppu.lcd.set_mode(LcdMode::Oam);
+            }
+
+            self.ppu.line_ticks = 0;
+        }
+    }
+
+    fn mode_vblank(&mut self) {
+        if self.ppu.line_ticks >= TICKS_PER_LINE {
+            self.ppu.lcd.ly += 1;
+
+            if self.ppu.lcd.ly as u32 >= LINES_PER_FRAME {
+                self.ppu.lcd.ly = 0;
+                self.ppu.lcd.set_mode(LcdMode::Oam);
+            }
+
+            self.ppu.line_ticks = 0;
+        }
     }
 }
 

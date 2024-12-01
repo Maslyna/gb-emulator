@@ -8,11 +8,6 @@ use std::io;
 use std::io::prelude::*;
 use std::convert::TryInto;
 
-#[derive(Debug)]
-pub enum CartrigeError {
-    InvalidFile(&'static str),
-    IoError(io::Error),
-}
 
 #[derive(Debug)]
 pub struct Rom {
@@ -38,8 +33,8 @@ pub struct Header {
 }
 
 impl Rom {
-    pub fn load(path: String) -> Result<(Rom, Header), CartrigeError> {
-        let mut file: File = File::open(path).map_err(CartrigeError::IoError)?;
+    pub fn load(path: String) -> Result<(Rom, Header), &'static str> {
+        let mut file: File = File::open(path).map_err(|_| "cannot load ROM")?;
         let mut buffer: Vec<u8> = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         let header = Header::new(&buffer);
@@ -50,19 +45,16 @@ impl Rom {
 
         match rom.is_checksum_valid(&header) {
             true => Ok((rom, header)),
-            false => Err(CartrigeError::InvalidFile("Invalid checksum")),
+            false => Err("invalid checksum"),
         }
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        if address as usize > self.data.len() {
-            return 0;
-        }
         self.data[address as usize]
     }
 
     pub fn write(&mut self, _address: u16, _value: u8) {
-        eprintln!("for now ROM only");
+        // eprintln!("for now ROM only");
     }
 
     fn calculate_cecksum(&self) -> u8 {
@@ -151,23 +143,6 @@ impl std::fmt::Display for Header {
     }
 }
 
-impl std::fmt::Display for CartrigeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidFile(msg) => writeln!(f, "InvalidFile({})", msg),
-            Self::IoError(err) => writeln!(f, "IoError({})", err),
-        }
-    }
-}
-
-impl std::error::Error for CartrigeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            CartrigeError::IoError(err) => Some(err),
-            _ => None,
-        }
-    }
-}
 
 fn u8_slice_to_ascii(slice: &[u8]) -> String {
     slice.iter().map(|byte| *byte as char).collect::<String>()

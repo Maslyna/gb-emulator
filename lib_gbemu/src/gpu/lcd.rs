@@ -1,6 +1,6 @@
 use super::{LcdMode, StatInterruptSource};
 
-const PALETTE_COLORS: [u32; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
+const PALETTE_COLORS: [u32; 4] = super::COLORS_DEFAULT;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -119,7 +119,7 @@ impl Lcd {
         }
     }
 
-    pub fn bg_data_area(&self) -> u16 {
+    pub fn bwg_data_area(&self) -> u16 {
         if bit!(self.lcdc, 4) {
             0x8000
         } else {
