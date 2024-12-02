@@ -157,16 +157,16 @@ impl Ppu {
             .push_back(FifoEntry { next: None, value });
     }
 
-    fn pop_pixel_fifo(&mut self) -> u32 {
+    fn pixel_fifo_pop(&mut self) -> u32 {
         if let Some(entry) = self.pfc.pixel_info.pop_back() {
             return entry.value;
         }
         panic!("PIXEL FIFO IS EMPTY!");
     }
 
-    fn push_pipeline_pixel(&mut self) {
+    fn pipeline_push_pixel(&mut self) {
         if self.pfc.pixel_info.len() > 8 {
-            let pixel_data = self.pop_pixel_fifo();
+            let pixel_data = self.pixel_fifo_pop();
 
             if self.pfc.line_x >= (self.lcd.scroll_x % 8) {
                 self.video_buffer
@@ -178,9 +178,23 @@ impl Ppu {
 
             self.pfc.line_x += 1;
         }
+        // if self.pfc.pixel_info.len() > 8 {
+        //     let pixel_data = self.pixel_fifo_pop();
+
+        //     if self.pfc.line_x >= (self.lcd.scroll_x % 8) {
+        //         let flipped_line = Y_RES - 1 - self.lcd.ly as u32;
+
+        //         self.video_buffer[(self.pfc.pushed_x as u32 + (flipped_line * X_RES)) as usize] =
+        //             pixel_data;
+
+        //         self.pfc.pushed_x += 1;
+        //     }
+
+        //     self.pfc.line_x += 1;
+        // }
     }
 
-    fn add_pipeline_fifo(&mut self) -> bool {
+    fn pipeline_fifo_add(&mut self) -> bool {
         if self.pfc.pixel_info.len() > 8 {
             return false;
         }
@@ -202,7 +216,7 @@ impl Ppu {
         true
     }
 
-    fn reset_pipeline_fifo(&mut self) {
+    fn pipeline_fifo_reset(&mut self) {
         self.pfc.pixel_info.clear();
     }
 }
@@ -219,7 +233,7 @@ impl Bus {
         }
     }
 
-    fn fetch_ppu_pipeline(&mut self) {
+    fn pipeline_fetch(&mut self) {
         match self.ppu.pfc.fetch_state {
             FetchState::Tile => {
                 if self.ppu.lcd.is_bgw_enabled() {
@@ -258,23 +272,23 @@ impl Bus {
                 self.ppu.pfc.fetch_state = FetchState::Push;
             }
             FetchState::Push => {
-                if self.ppu.add_pipeline_fifo() {
+                if self.ppu.pipeline_fifo_add() {
                     self.ppu.pfc.fetch_state = FetchState::Tile;
                 }
             }
         };
     }
 
-    fn process_pipeline(&mut self) {
+    fn pipeline_process(&mut self) {
         self.ppu.pfc.map_y = self.ppu.lcd.ly.wrapping_add(self.ppu.lcd.scroll_y);
         self.ppu.pfc.map_x = self.ppu.pfc.fetch_x.wrapping_add(self.ppu.lcd.scroll_x);
         self.ppu.pfc.tile_y = ((self.ppu.lcd.ly + self.ppu.lcd.scroll_y) % 8).wrapping_mul(2);
 
         if (self.ppu.line_ticks & 1) == 0 {
-            self.fetch_ppu_pipeline();
+            self.pipeline_fetch();
         }
 
-        self.ppu.push_pipeline_pixel();
+        self.ppu.pipeline_push_pixel();
     }
 
     fn mode_oam(&mut self) {
@@ -290,10 +304,10 @@ impl Bus {
     }
 
     fn mode_xfer(&mut self) {
-        self.process_pipeline();
+        self.pipeline_process();
 
         if self.ppu.pfc.pushed_x as u32 >= X_RES {
-            self.ppu.reset_pipeline_fifo();
+            self.ppu.pipeline_fifo_reset();
             self.ppu.lcd.set_mode(LcdMode::HBlank);
 
             if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {

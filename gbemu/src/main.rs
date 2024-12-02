@@ -43,14 +43,16 @@ fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
 
     for line in 0..Y_RES {
         for x in 0..X_RES {
+            let index = x + (line * X_RES); // Обычный порядок индексов
             let rect =
                 sdl2::rect::Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
-            let color = buffer[(x + (line * X_RES)) as usize].to_color(); // &buffer[(x + (line * X_RES)) as usize] as * const u32 as * const Color;
-
+            let color = buffer[index as usize].to_color();
+    
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
         }
     }
+    
 
     canvas.present();
 }
@@ -88,7 +90,7 @@ fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("gbemu", SCREEN_WIDTH, SCREEN_HEIGHT)
+        .window("gbemu", X_RES * SCALE, Y_RES * SCALE)
         .position_centered()
         .build()
         .unwrap();
