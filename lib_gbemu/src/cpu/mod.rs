@@ -106,8 +106,6 @@ impl Cpu {
         }
     }
 
-    fn _process() {}
-
     pub fn execute(&mut self, bus: &mut Bus) {
         instruction::process(self, bus)
     }
@@ -115,7 +113,7 @@ impl Cpu {
     pub fn fetch_instruction(&mut self, bus: &Bus) {
         self.cur_opcode = bus.read(self.regs.pc);
         self.cur_inst = Instruction::from(self.cur_opcode);
-        self.regs.pc += 1;
+        self.regs.pc = self.regs.pc.wrapping_add(1);
     }
 
     pub fn fetch_data(&mut self, bus: &mut Bus) {
@@ -164,14 +162,18 @@ impl Cpu {
                 bus.cycle(1);
             }
             AM::RegHLI => {
-                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r2)) as u16;
+                let address = self.read_reg(self.cur_inst.r2);
+                self.fetched_data = bus.read(address) as u16;
                 bus.cycle(1);
-                self.set_reg(RT::HL, self.read_reg(RT::HL) + 1)
+                let data = self.read_reg(RT::HL).wrapping_add(1);
+                self.set_reg(RT::HL, data);
             }
             AM::RegHLD => {
-                self.fetched_data = bus.read(self.read_reg(self.cur_inst.r2)) as u16;
+                let address = self.read_reg(self.cur_inst.r2);
+                self.fetched_data = bus.read(address) as u16;
                 bus.cycle(1);
-                self.set_reg(RT::HL, self.read_reg(RT::HL) - 1)
+                let data = self.read_reg(RT::HL).wrapping_sub(1);
+                self.set_reg(RT::HL, data);
             }
             AM::HLIReg => {
                 self.fetched_data = self.read_reg(self.cur_inst.r2);
@@ -285,10 +287,10 @@ impl Cpu {
             RT::E => self.regs.e as u16,
             RT::H => self.regs.h as u16,
             RT::L => self.regs.l as u16,
-            RT::AF => (self.regs.a as u16) << 8 | (self.regs.f as u16),
-            RT::BC => (self.regs.b as u16) << 8 | (self.regs.c as u16),
-            RT::DE => (self.regs.d as u16) << 8 | (self.regs.e as u16),
-            RT::HL => (self.regs.h as u16) << 8 | (self.regs.l as u16),
+            RT::AF => ((self.regs.a as u16) << 8) | (self.regs.f as u16),
+            RT::BC => ((self.regs.b as u16) << 8) | (self.regs.c as u16),
+            RT::DE => ((self.regs.d as u16) << 8) | (self.regs.e as u16),
+            RT::HL => ((self.regs.h as u16) << 8) | (self.regs.l as u16),
             // RT::AF => (self.regs.a as u16) << 8 | (self.regs.f & 0xF0) as u16,
             // RT::BC => (self.regs.b as u16) << 8 | self.regs.c as u16,
             // RT::DE => (self.regs.d as u16) << 8 | self.regs.e as u16,

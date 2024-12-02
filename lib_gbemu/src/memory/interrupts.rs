@@ -46,7 +46,7 @@ impl InterruptState {
     pub fn is_active(&self, interrupt: Interrupt) -> bool {
         let it = interrupt as u8;
 
-        (self.flags & it == it) && (self.enabled & it == it)
+        self.flags & it == it && self.enabled & it == it
     }
 
     pub fn remove_flag(&mut self, interrupt: Interrupt) {
@@ -69,19 +69,23 @@ pub fn handle_interrupts(cpu: &mut Cpu, bus: &mut Bus) {
         Interrupt::Joypad,
     ];
     for interrupt in INTERRUPTS {
-        if handle_interrupt(cpu, bus, interrupt, interrupt.address()) {
+        if interrupt_check(cpu, bus, interrupt, interrupt.address()) {
             return;
         }
     }
 }
 
-fn handle_interrupt(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt, address: u16) -> bool {
+fn interrupt_handle(cpu: &mut Cpu, bus: &mut Bus, address: u16) {
+    cpu.stack_push16(cpu.regs.pc, bus);
+    cpu.regs.pc = address;
+}
+
+fn interrupt_check(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt, address: u16) -> bool {
     if !bus.interrupts.is_active(interrupt) {
         return false;
     }
 
-    cpu.stack_push16(cpu.regs.pc, bus);
-    cpu.regs.pc = address;
+    interrupt_handle(cpu, bus, address);
     bus.interrupts.remove_flag(interrupt);
     cpu.is_halted = false;
     cpu.interrupt_master_enabled = false;

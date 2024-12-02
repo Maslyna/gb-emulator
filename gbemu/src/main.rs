@@ -3,6 +3,9 @@ extern crate lib_gbemu;
 extern crate sdl2;
 
 mod gbscreen;
+mod utils;
+
+use utils::ToColor;
 
 use lib_gbemu::cartridge::rom::Rom;
 use lib_gbemu::cpu::Cpu;
@@ -36,21 +39,13 @@ const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
 struct Emulator(Cpu, Bus);
 
 fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
-    fn color_from_u32(argb: u32) -> Color {
-        let a = ((argb >> 24) & 0xFF) as u8;
-        let r = ((argb >> 16) & 0xFF) as u8;
-        let g = ((argb >> 8) & 0xFF) as u8;
-        let b = (argb & 0xFF) as u8;
-
-        Color::RGBA(r, g, b, a)
-    }
     let buffer = &bus.ppu.video_buffer;
 
     for line in 0..Y_RES {
         for x in 0..X_RES {
             let rect =
                 sdl2::rect::Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
-            let color = color_from_u32(buffer[(x + (line * X_RES)) as usize]);
+            let color = buffer[(x + (line * X_RES)) as usize].to_color(); // &buffer[(x + (line * X_RES)) as usize] as * const u32 as * const Color;
 
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();

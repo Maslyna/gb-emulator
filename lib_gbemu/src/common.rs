@@ -8,7 +8,7 @@ pub fn reverse(n: u16) -> u16 {
 
 #[allow(dead_code)]
 const DEBUG_FILE: &str = "debug_out.txt";
-const DEBUG_OUTPUT: bool = false;
+const DEBUG_OUTPUT: bool = true;
 
 #[allow(dead_code)]
 pub fn debug_write(data: &str) {

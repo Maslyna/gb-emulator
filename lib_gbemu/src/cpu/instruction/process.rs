@@ -266,7 +266,7 @@ fn adc_in(cpu: &mut Cpu) {
     cpu.regs.a = ((a + u + c) & 0xFF) as u8;
 
     let flag_z = cpu.regs.a == 0;
-    let flag_h = ((a & 0xF) + (u & 0xF) + c) > 0;
+    let flag_h = ((a & 0xF) + (u & 0xF) + c) > 0xF;
     let flag_c = (a + u + c) > 0xFF;
 
     cpu.regs.set_flag(Flag::Z, flag_z);

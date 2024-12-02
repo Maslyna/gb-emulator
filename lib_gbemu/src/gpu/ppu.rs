@@ -5,10 +5,10 @@ use crate::emu::Emu;
 use crate::memory::interrupts::Interrupt;
 use crate::memory::Bus;
 
-use std::sync::Arc;
 use std::collections::LinkedList;
+use std::sync::Arc;
 
-use super::{Y_RES, X_RES};
+use super::{X_RES, Y_RES};
 
 const LINES_PER_FRAME: u32 = 154;
 const TICKS_PER_LINE: u32 = 456;
@@ -164,7 +164,7 @@ impl Ppu {
         panic!("PIXEL FIFO IS EMPTY!");
     }
 
-    fn pipeline_push_pixel(&mut self) {
+    fn push_pipeline_pixel(&mut self) {
         if self.pfc.pixel_info.len() > 8 {
             let pixel_data = self.pop_pixel_fifo();
 
@@ -185,15 +185,15 @@ impl Ppu {
             return false;
         }
 
-        let x_offset = 8 - (self.lcd.scroll_x % 8);
-        let start_x = self.pfc.fetch_x.wrapping_sub(x_offset) as i8;
-
-        for bit in (0..8).rev() {
+        let x: i8 = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i8;
+        for bit in 0..8 {
+            let bit = 7 - bit;
             let lo: u8 = (self.pfc.background_fetch_data[1] & (1 << bit) != 0) as u8;
             let hi: u8 = ((self.pfc.background_fetch_data[2] & (1 << bit)) << 1 != 0) as u8;
+
             let color = self.lcd.bg_colors[(hi | lo) as usize];
 
-            if start_x >= 0 {
+            if x >= 0 {
                 self.push_pixel_fifo(color);
                 self.pfc.fifo_x += 1;
             }
@@ -266,15 +266,15 @@ impl Bus {
     }
 
     fn process_pipeline(&mut self) {
-        self.ppu.pfc.map_y = self.ppu.lcd.ly + self.ppu.lcd.scroll_y;
-        self.ppu.pfc.map_x = self.ppu.pfc.fetch_x + self.ppu.lcd.scroll_x;
-        self.ppu.pfc.tile_y = ((self.ppu.lcd.ly + self.ppu.lcd.scroll_y) % 8) * 2;
+        self.ppu.pfc.map_y = self.ppu.lcd.ly.wrapping_add(self.ppu.lcd.scroll_y);
+        self.ppu.pfc.map_x = self.ppu.pfc.fetch_x.wrapping_add(self.ppu.lcd.scroll_x);
+        self.ppu.pfc.tile_y = ((self.ppu.lcd.ly + self.ppu.lcd.scroll_y) % 8).wrapping_mul(2);
 
         if (self.ppu.line_ticks & 1) == 0 {
             self.fetch_ppu_pipeline();
         }
 
-        self.ppu.pipeline_push_pixel();
+        self.ppu.push_pipeline_pixel();
     }
 
     fn mode_oam(&mut self) {

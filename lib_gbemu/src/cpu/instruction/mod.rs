@@ -705,7 +705,7 @@ impl Instruction {
             inst[0x57] = Instruction {
                 in_type: IT::Ld,
                 mode: AM::RegReg,
-                r1: RT::E,
+                r1: RT::D,
                 r2: RT::A,
                 ..Instruction::default()
             };
