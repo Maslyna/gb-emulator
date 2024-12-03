@@ -1605,8 +1605,8 @@ impl Instruction {
                 ..Instruction::default()
             };
             inst[0xDE] = Instruction {
-                in_type: IT::Sub,
-                mode: AM::D8,
+                in_type: IT::Sbc,
+                mode: AM::RegD8,
                 r1: RT::A,
                 ..Instruction::default()
             };

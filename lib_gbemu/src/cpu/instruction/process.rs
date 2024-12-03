@@ -354,7 +354,11 @@ fn cb_in(cpu: &mut Cpu, bus: &mut Bus) {
     let bit_op = ((operation >> 6) & 0b11) as u8;
     let flag_c = cpu.regs.flag_c();
 
-    bus.cycle(if reg == RT::HL { 3 } else { 1 });
+    bus.cycle(1);
+
+    if reg == RT::HL {
+        bus.cycle(2);
+    }
 
     match bit_op {
         1 => {
@@ -545,7 +549,7 @@ fn rrca_in(cpu: &mut Cpu) {
 fn rla_in(cpu: &mut Cpu) {
     let tmp = cpu.regs.a;
     let flag_c = cpu.regs.flag_c() as u8;
-    let c = (tmp >> 7) | 1;
+    let c = (tmp >> 7) & 1;
 
     cpu.regs.a = (tmp << 1) | flag_c;
     cpu.regs._set_flags(false, false, false, c != 0);

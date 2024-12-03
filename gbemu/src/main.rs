@@ -24,8 +24,6 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use lib_gbemu::gpu::{X_RES, Y_RES};
 
-const SCREEN_WIDTH: u32 = 800;
-const SCREEN_HEIGHT: u32 = 600;
 const SCALE: u32 = 3;
 
 const DGB_SERIAL: bool = false;
@@ -43,16 +41,15 @@ fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
 
     for line in 0..Y_RES {
         for x in 0..X_RES {
-            let index = x + (line * X_RES); // Обычный порядок индексов
+            let index = x + (line * X_RES);
             let rect =
                 sdl2::rect::Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
             let color = buffer[index as usize].to_color();
-    
+
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
         }
     }
-    
 
     canvas.present();
 }

@@ -14,7 +14,7 @@ pub struct Lcd {
     pub ly_compare: u8,
     pub dma: u8,
     pub bg_palette: u8,
-    pub obj_palette: u8,
+    pub obj_palette: [u8; 2],
     pub win_x: u8,
     pub win_y: u8,
 
@@ -40,7 +40,7 @@ impl Lcd {
             ly_compare: 0,
             dma: 0,
             bg_palette: 0xFC,
-            obj_palette: 0xFF,
+            obj_palette: [0xFF; 2],
             win_x: 0,
             win_y: 0,
             bg_colors: PALETTE_COLORS,
@@ -56,9 +56,20 @@ impl Lcd {
     pub fn read(&self, address: u16) -> u8 {
         let offset = address.wrapping_sub(0xFF40);
 
-        unsafe {
-            let ptr = self as *const Lcd as *const u8;
-            *ptr.add(offset as usize)
+        match offset {
+            0x00 => self.lcdc,
+            0x01 => self.lcds,
+            0x02 => self.scroll_y,
+            0x03 => self.scroll_x,
+            0x04 => self.ly,
+            0x05 => self.ly_compare,
+            0x06 => self.dma,
+            0x07 => self.bg_palette,
+            0x08 => self.obj_palette[0],
+            0x09 => self.obj_palette[1],
+            0x0A => self.win_y,
+            0x0B => self.win_x,
+            _ => unreachable!(),
         }
     }
 
@@ -66,10 +77,21 @@ impl Lcd {
     pub fn write(&mut self, address: u16, value: u8) {
         let offset = address.wrapping_sub(0xFF40);
 
-        unsafe {
-            let ptr = self as *mut Lcd as *mut u8;
-            *ptr.add(offset as usize) = value;
-        }
+        match offset {
+            0x00 => self.lcdc = value,
+            0x01 => self.lcds = value,
+            0x02 => self.scroll_y = value,
+            0x03 => self.scroll_x = value,
+            0x04 => self.ly = value,
+            0x05 => self.ly_compare = value,
+            0x06 => self.dma = value,
+            0x07 => self.bg_palette = value,
+            0x08 => self.obj_palette[0] = value,
+            0x09 => self.obj_palette[1] = value,
+            0x0A => self.win_y = value,
+            0x0B => self.win_x = value,
+            _ => unreachable!(),
+        };
 
         match address {
             0xFF47 => self.set_pallete(value, Pallete::BgColors),

@@ -23,7 +23,3 @@ macro_rules! bytes_to_word {
     };
 }
 
-macro_rules! debug {
-    ($($arg:tt)*) => (if ::std::cfg!(debug_assertions) { ::std::println!($($arg)*); })
-}
-

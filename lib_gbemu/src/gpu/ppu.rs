@@ -5,8 +5,7 @@ use crate::emu::Emu;
 use crate::memory::interrupts::Interrupt;
 use crate::memory::Bus;
 
-use std::collections::LinkedList;
-use std::sync::Arc;
+use std::collections::VecDeque;
 
 use super::{X_RES, Y_RES};
 
@@ -24,15 +23,9 @@ enum FetchState {
 }
 
 #[derive(Debug)]
-struct FifoEntry {
-    next: Option<Arc<FifoEntry>>,
-    value: u32,
-}
-
-#[derive(Debug)]
 struct PixelContext {
     fetch_state: FetchState,
-    pixel_info: LinkedList<FifoEntry>,
+    pixel_info: VecDeque<u32>,
     line_x: u8,
     pushed_x: u8,
     fetch_x: u8,
@@ -65,6 +58,7 @@ impl Oam {
 }
 
 #[derive(Debug)]
+#[repr(C)]
 pub struct Ppu {
     pub lcd: Lcd,
     pub interrupts: u8,
@@ -151,15 +145,15 @@ impl Ppu {
         self.interrupts |= interrupt as u8;
     }
 
-    fn push_pixel_fifo(&mut self, value: u32) {
+    fn pixel_fifo_push(&mut self, value: u32) {
         self.pfc
             .pixel_info
-            .push_back(FifoEntry { next: None, value });
+            .push_back(value);
     }
 
     fn pixel_fifo_pop(&mut self) -> u32 {
-        if let Some(entry) = self.pfc.pixel_info.pop_back() {
-            return entry.value;
+        if let Some(entry) = self.pfc.pixel_info.pop_front() {
+            return entry;
         }
         panic!("PIXEL FIFO IS EMPTY!");
     }
@@ -178,20 +172,6 @@ impl Ppu {
 
             self.pfc.line_x += 1;
         }
-        // if self.pfc.pixel_info.len() > 8 {
-        //     let pixel_data = self.pixel_fifo_pop();
-
-        //     if self.pfc.line_x >= (self.lcd.scroll_x % 8) {
-        //         let flipped_line = Y_RES - 1 - self.lcd.ly as u32;
-
-        //         self.video_buffer[(self.pfc.pushed_x as u32 + (flipped_line * X_RES)) as usize] =
-        //             pixel_data;
-
-        //         self.pfc.pushed_x += 1;
-        //     }
-
-        //     self.pfc.line_x += 1;
-        // }
     }
 
     fn pipeline_fifo_add(&mut self) -> bool {
@@ -199,7 +179,7 @@ impl Ppu {
             return false;
         }
 
-        let x: i8 = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i8;
+        let x = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
         for bit in 0..8 {
             let bit = 7 - bit;
             let lo: u8 = (self.pfc.background_fetch_data[1] & (1 << bit) != 0) as u8;
@@ -208,7 +188,7 @@ impl Ppu {
             let color = self.lcd.bg_colors[(hi | lo) as usize];
 
             if x >= 0 {
-                self.push_pixel_fifo(color);
+                self.pixel_fifo_push(color);
                 self.pfc.fifo_x += 1;
             }
         }
@@ -372,7 +352,7 @@ impl PixelContext {
     pub fn new() -> Self {
         Self {
             fetch_state: FetchState::Tile,
-            pixel_info: LinkedList::new(),
+            pixel_info: VecDeque::new(),
             line_x: 0,
             pushed_x: 0,
             fetch_x: 0,
