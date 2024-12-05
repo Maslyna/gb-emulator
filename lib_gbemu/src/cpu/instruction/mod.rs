@@ -1624,7 +1624,6 @@ impl Instruction {
             inst[0xE0] = Instruction {
                 in_type: IT::Ldh,
                 mode: AM::A8Reg,
-                r1: RT::None,
                 r2: RT::A,
                 ..Instruction::default()
             };

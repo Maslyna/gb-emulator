@@ -3,7 +3,6 @@ pub struct Emu {
     pub die: bool,
     pub paused: bool,
     pub running: bool,
-    pub ticks: u64,
 }
 
 impl Emu {
@@ -12,7 +11,6 @@ impl Emu {
             die: false,
             paused: false,
             running: false,
-            ticks: 0,
         }
     }
 

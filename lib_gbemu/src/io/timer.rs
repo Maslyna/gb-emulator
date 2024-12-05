@@ -1,4 +1,3 @@
-
 use crate::memory::interrupts::Interrupt;
 
 #[derive(Debug)]
@@ -7,7 +6,9 @@ pub struct Timer {
     pub tima: u8,
     pub tma: u8,
     pub tac: u8,
-    
+
+    pub ticks: u32,
+
     pub interrupts: u8,
 }
 
@@ -18,7 +19,8 @@ impl Timer {
             tima: 0,
             tma: 0,
             tac: 0,
-            interrupts: 0
+            ticks: 0,
+            interrupts: 0,
         }
     }
 
@@ -30,19 +32,19 @@ impl Timer {
 
         match self.tac & 0b11 {
             0b00 => {
-                timer_update = (prev_divider & (1 << 9) != 0) && (!(self.div & (1 << 9))) != 0;
+                timer_update = (prev_divider & (1 << 9)) != 0 && self.div & (1 << 9) == 0;
             }
             0b01 => {
-                timer_update = (prev_divider & (1 << 3) != 0) && (!(self.div & (1 << 3))) != 0;
+                timer_update = (prev_divider & (1 << 3)) != 0 && self.div & (1 << 3) == 0;
             }
             0b10 => {
-                timer_update = (prev_divider & (1 << 5) != 0) && (!(self.div & (1 << 5))) != 0;
+                timer_update = (prev_divider & (1 << 5)) != 0 && self.div & (1 << 5) == 0;
             }
             0b11 => {
-                timer_update = (prev_divider & (1 << 7) != 0) && (!(self.div & (1 << 7))) != 0;
+                timer_update = (prev_divider & (1 << 7)) != 0 && self.div & (1 << 7) == 0;
             }
             _ => {}
-        };
+        }
 
         if timer_update && self.is_timer_enabled() {
             self.tima += 1;
@@ -59,20 +61,20 @@ impl Timer {
             0xFF04 => {
                 // DIV
                 self.div = 0;
-            },
+            }
             0xFF05 => {
                 // TIMA
                 self.tima = value;
-            },
+            }
             0xFF06 => {
                 // TMA
                 self.tma = value;
-            },
+            }
             0xFF07 => {
                 // TAC
                 self.tac = value;
-            },
-            _ => panic!("UNSUPPORTED TIMER WRITE: {:04X}, {:02X}", address, value)
+            }
+            _ => panic!("UNSUPPORTED TIMER WRITE: {:04X}, {:02X}", address, value),
         }
     }
 
@@ -81,20 +83,20 @@ impl Timer {
             0xFF04 => {
                 // DIV
                 (self.div >> 8) as u8
-            },
+            }
             0xFF05 => {
                 // TIMA
                 self.tima
-            },
+            }
             0xFF06 => {
                 // TMA
                 self.tma
-            },
+            }
             0xFF07 => {
                 // TAC
                 self.tac
-            },
-            _ => panic!("UNSUPPORTED TIMER READ: {:04X}", address)
+            }
+            _ => panic!("UNSUPPORTED TIMER READ: {:04X}", address),
         }
     }
 

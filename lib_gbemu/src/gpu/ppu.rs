@@ -57,8 +57,8 @@ impl Oam {
     }
 }
 
-#[derive(Debug)]
 #[repr(C)]
+#[derive(Debug)]
 pub struct Ppu {
     pub lcd: Lcd,
     pub interrupts: u8,
@@ -146,9 +146,7 @@ impl Ppu {
     }
 
     fn pixel_fifo_push(&mut self, value: u32) {
-        self.pfc
-            .pixel_info
-            .push_back(value);
+        self.pfc.pixel_info.push_back(value);
     }
 
     fn pixel_fifo_pop(&mut self) -> u32 {
@@ -163,9 +161,11 @@ impl Ppu {
             let pixel_data = self.pixel_fifo_pop();
 
             if self.pfc.line_x >= (self.lcd.scroll_x % 8) {
-                self.video_buffer
-                    [(self.pfc.pushed_x as u32 + (self.lcd.ly as u32 * X_RES)) as usize] =
-                    pixel_data;
+                self.video_buffer[self
+                    .pfc
+                    .pushed_x
+                    .wrapping_add((self.lcd.ly as u32 * X_RES) as u8)
+                    as usize] = pixel_data;
 
                 self.pfc.pushed_x += 1;
             }
@@ -206,10 +206,10 @@ impl Bus {
         self.ppu.line_ticks += 1;
 
         match self.ppu.lcd.get_mode() {
-            LcdMode::HBlank => self.mode_hblank(),
-            LcdMode::VBlank => self.mode_vblank(),
             LcdMode::Oam => self.mode_oam(),
             LcdMode::Xfer => self.mode_xfer(),
+            LcdMode::VBlank => self.mode_vblank(),
+            LcdMode::HBlank => self.mode_hblank(),
         }
     }
 
@@ -218,8 +218,8 @@ impl Bus {
             FetchState::Tile => {
                 if self.ppu.lcd.is_bgw_enabled() {
                     let address = self.ppu.lcd.bg_map_area()
-                        + (self.ppu.pfc.map_x as u16 / 8)
-                        + ((self.ppu.pfc.map_y as u16 / 8) * 32);
+                        + (self.ppu.pfc.map_x / 8) as u16
+                        + ((self.ppu.pfc.map_y / 8) as u16 * 32);
                     self.ppu.pfc.background_fetch_data[0] = self.read(address);
 
                     if self.ppu.lcd.bwg_data_area() == 0x8800 {
@@ -242,8 +242,7 @@ impl Bus {
             FetchState::Data1 => {
                 let address = self.ppu.lcd.bwg_data_area()
                     + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
-                    + self.ppu.pfc.tile_y as u16
-                    + 1;
+                    + (self.ppu.pfc.tile_y + 1) as u16;
                 self.ppu.pfc.background_fetch_data[2] = self.read(address);
 
                 self.ppu.pfc.fetch_state = FetchState::Idle;
@@ -260,9 +259,12 @@ impl Bus {
     }
 
     fn pipeline_process(&mut self) {
-        self.ppu.pfc.map_y = self.ppu.lcd.ly.wrapping_add(self.ppu.lcd.scroll_y);
-        self.ppu.pfc.map_x = self.ppu.pfc.fetch_x.wrapping_add(self.ppu.lcd.scroll_x);
-        self.ppu.pfc.tile_y = ((self.ppu.lcd.ly + self.ppu.lcd.scroll_y) % 8).wrapping_mul(2);
+        let pfc = &mut self.ppu.pfc;
+        let lcd = &mut self.ppu.lcd;
+
+        pfc.map_y = lcd.ly.wrapping_add(lcd.scroll_y);
+        pfc.map_x = pfc.fetch_x.wrapping_add(lcd.scroll_x);
+        pfc.tile_y = (lcd.ly.wrapping_add(lcd.scroll_y) % 8).wrapping_mul(2);
 
         if (self.ppu.line_ticks & 1) == 0 {
             self.pipeline_fetch();
@@ -336,7 +338,7 @@ impl Bus {
 
     fn mode_vblank(&mut self) {
         if self.ppu.line_ticks >= TICKS_PER_LINE {
-            self.ppu.lcd.ly += 1;
+            self.ppu.increment_ly();
 
             if self.ppu.lcd.ly as u32 >= LINES_PER_FRAME {
                 self.ppu.lcd.ly = 0;

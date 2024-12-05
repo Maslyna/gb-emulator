@@ -113,7 +113,7 @@ impl Lcd {
         bit!(self.lcdc, 0)
     }
 
-    pub fn is_obj(&self) -> bool {
+    pub fn is_obj_enabled(&self) -> bool {
         bit!(self.lcdc, 1)
     }
 
@@ -172,7 +172,8 @@ impl Lcd {
     }
 
     pub fn set_mode(&mut self, mode: LcdMode) {
-        self.lcds = (self.lcds & 0b1111_1100) | (mode as u8);
+        self.lcdc &= !(0b11);
+        self.lcds |= mode as u8;
     }
 
     fn set_pallete(&mut self, data: u8, palette: Pallete) {

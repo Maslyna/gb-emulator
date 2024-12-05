@@ -33,7 +33,7 @@ pub struct Bus {
     pub ppu: Ppu,
     dma: Dma,
     pub emu: Emu,
-    timer: Timer,
+    pub timer: Timer,
     serial_data: [u8; 2],
 }
 
@@ -54,7 +54,7 @@ impl Bus {
     pub fn cycle(&mut self, cycles: i32) {
         for _ in 0..cycles {
             for _ in 0..4 {
-                self.emu.ticks = self.emu.ticks.wrapping_add(1);
+                self.timer.ticks = self.timer.ticks.wrapping_add(1);
                 self.timer.tick();
                 self.ppu_tick();
             }
@@ -66,7 +66,7 @@ impl Bus {
         self.timer.interrupts = 0;
 
         self.interrupts.flags |= self.ppu.interrupts;
-        self.ppu.interrupts = 0; 
+        self.ppu.interrupts = 0;
     }
 
     pub fn read(&self, address: u16) -> u8 {

@@ -49,8 +49,8 @@ impl Cpu {
             cur_inst: Instruction::default(),
             is_halted: false,
             _stepping: false,
-            interrupt_master_enabled: false,
-            enabling_ime: false,
+            interrupt_master_enabled: true,
+            enabling_ime: true,
         }
     }
 
@@ -61,11 +61,11 @@ impl Cpu {
             bus.cycle(1);
             self.fetch_data(bus);
 
-            let instruction_view = instruction_to_str(self, bus);
             if DEBUG {
+                let instruction_view = instruction_to_str(self, bus);
                 let debug_data = format!(
                     "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X}) A: {:02X} FLAGS: {}{}{}{} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}\n",
-                    bus.emu.ticks,
+                    bus.timer.ticks,
                     self.regs.pc,
                     instruction_view,
                     self.cur_opcode,
