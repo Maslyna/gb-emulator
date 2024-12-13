@@ -79,7 +79,7 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new() -> Self {
-        Self {
+        let mut ppu = Self {
             lcd: Lcd::new(),
             interrupts: 0,
             oam_ram: [Oam::new(); 0x40],
@@ -92,7 +92,10 @@ impl Ppu {
             start_time: 0,
             frame_count: 0,
             pfc: PixelContext::new(),
-        }
+        };
+        ppu.lcd.set_mode(LcdMode::Oam);
+
+        ppu
     }
 
     pub fn oam_write(&mut self, address: u16, value: u8) {
@@ -203,6 +206,24 @@ impl Ppu {
 
 impl Bus {
     pub fn ppu_tick(&mut self) {
+        const DEBUG: bool = false;
+
+        if DEBUG {
+            let debug_ppu_output = format!(
+                "PPU: FRAME {} FCOUNT {} LINET {} ", self.ppu.current_frame, self.ppu.frame_count, self.ppu.line_ticks
+            );
+            let debug_lcd_output: String = format!(
+                "LCD: LCDC {} LCDS {} LY {} DMA {}", self.ppu.lcd.lcdc, self.ppu.lcd.lcds, self.ppu.lcd.ly, self.ppu.lcd.dma
+            );
+            let debug_pixelcontext_output: String = format!(
+                "PFC: STATE {:?} PI_LEN {}", self.ppu.pfc.fetch_state, self.ppu.pfc.pixel_info.len()
+            );
+
+            let debug_output = format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
+            print!("{debug_output}");
+            crate::common::debug_write(&debug_output);
+        }
+        
         self.ppu.line_ticks += 1;
 
         match self.ppu.lcd.get_mode() {

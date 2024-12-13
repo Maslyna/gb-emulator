@@ -55,6 +55,10 @@ impl Cpu {
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
+        if self.regs.pc == 518 {
+            print!("");
+        }
+
         if !self.is_halted {
             self.fetch_instruction(bus);
 

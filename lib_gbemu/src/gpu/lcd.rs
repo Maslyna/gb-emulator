@@ -31,7 +31,7 @@ enum Pallete {
 
 impl Lcd {
     pub fn new() -> Self {
-        let mut lcd = Self {
+        Self {
             lcdc: 0x91,
             lcds: 0,
             scroll_x: 0,
@@ -46,11 +46,7 @@ impl Lcd {
             bg_colors: PALETTE_COLORS,
             sp1_colors: PALETTE_COLORS,
             sp2_colors: PALETTE_COLORS,
-        };
-
-        lcd.set_mode(LcdMode::Oam);
-
-        lcd
+        }
     }
 
     pub fn read(&self, address: u16) -> u8 {
@@ -172,8 +168,7 @@ impl Lcd {
     }
 
     pub fn set_mode(&mut self, mode: LcdMode) {
-        self.lcdc &= !(0b11);
-        self.lcds |= mode as u8;
+        self.lcds = (self.lcds & 0b1111_1100) | (mode as u8);
     }
 
     fn set_pallete(&mut self, data: u8, palette: Pallete) {

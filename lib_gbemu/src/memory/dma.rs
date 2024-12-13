@@ -9,13 +9,20 @@ pub struct Dma {
 }
 
 impl Dma {
-    pub const fn start(start: u8) -> Self {
+    pub const fn new() -> Self {
         Self {
-            is_active: true,
+            is_active: false,
             byte: 0,
-            value: start,
-            start_delay: 2,
+            value: 0,
+            start_delay: 0,
         }
+    }
+
+    pub fn start(&mut self, start: u8) {
+        self.is_active = true;
+        self.byte = 0;
+        self.value = start;
+        self.start_delay = 2;
     }
 
     pub fn is_transfering(&self) -> bool {

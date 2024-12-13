@@ -42,7 +42,7 @@ impl Bus {
         Self {
             ppu: Ppu::new(),
             rom,
-            dma: Dma::start(0),
+            dma: Dma::new(),
             ram: Ram::new(),
             emu: Emu::new(),
             interrupts: InterruptState::new(),
@@ -145,7 +145,7 @@ impl Bus {
                 0xFF0F => self.interrupts.flags = value,
                 0xFF40..=0xFF4B => {
                     if address == 0xFF46 {
-                        self.dma = Dma::start(value);
+                        self.dma.start(value);
                     }
                     self.ppu.lcd.write(address, value);
                 }
