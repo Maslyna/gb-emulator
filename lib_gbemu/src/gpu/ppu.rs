@@ -79,7 +79,7 @@ pub struct Ppu {
 
 impl Ppu {
     pub fn new() -> Self {
-        let mut ppu = Self {
+        Self {
             lcd: Lcd::new(),
             interrupts: 0,
             oam_ram: [Oam::new(); 0x40],
@@ -92,10 +92,7 @@ impl Ppu {
             start_time: 0,
             frame_count: 0,
             pfc: PixelContext::new(),
-        };
-        ppu.lcd.set_mode(LcdMode::Oam);
-
-        ppu
+        }
     }
 
     pub fn oam_write(&mut self, address: u16, value: u8) {
@@ -153,10 +150,10 @@ impl Ppu {
     }
 
     fn pixel_fifo_pop(&mut self) -> u32 {
-        if let Some(entry) = self.pfc.pixel_info.pop_front() {
-            return entry;
-        }
-        panic!("PIXEL FIFO IS EMPTY!");
+        self.pfc
+            .pixel_info
+            .pop_front()
+            .expect("PIXEL FIFO IS EMPTY!")
     }
 
     fn pipeline_push_pixel(&mut self) {
@@ -164,11 +161,8 @@ impl Ppu {
             let pixel_data = self.pixel_fifo_pop();
 
             if self.pfc.line_x >= (self.lcd.scroll_x % 8) {
-                self.video_buffer[self
-                    .pfc
-                    .pushed_x
-                    .wrapping_add((self.lcd.ly as u32 * X_RES) as u8)
-                    as usize] = pixel_data;
+                let index = self.pfc.pushed_x as usize + self.lcd.ly as usize * X_RES as usize;
+                self.video_buffer[index] = pixel_data;
 
                 self.pfc.pushed_x += 1;
             }
@@ -185,8 +179,8 @@ impl Ppu {
         let x = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
         for bit in 0..8 {
             let bit = 7 - bit;
-            let lo: u8 = (self.pfc.background_fetch_data[1] & (1 << bit) != 0) as u8;
-            let hi: u8 = ((self.pfc.background_fetch_data[2] & (1 << bit)) << 1 != 0) as u8;
+            let lo: u8 = ((self.pfc.background_fetch_data[1] & (1 << bit)) != 0) as u8;
+            let hi: u8 = (((self.pfc.background_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
 
             let color = self.lcd.bg_colors[(hi | lo) as usize];
 
@@ -210,20 +204,25 @@ impl Bus {
 
         if DEBUG {
             let debug_ppu_output = format!(
-                "PPU: FRAME {} FCOUNT {} LINET {} ", self.ppu.current_frame, self.ppu.frame_count, self.ppu.line_ticks
+                "PPU: FRAME {} FCOUNT {} LINET {} ",
+                self.ppu.current_frame, self.ppu.frame_count, self.ppu.line_ticks
             );
             let debug_lcd_output: String = format!(
-                "LCD: LCDC {} LCDS {} LY {} DMA {}", self.ppu.lcd.lcdc, self.ppu.lcd.lcds, self.ppu.lcd.ly, self.ppu.lcd.dma
+                "LCD: LCDC {} LCDS {} LY {} DMA {}",
+                self.ppu.lcd.lcdc, self.ppu.lcd.lcds, self.ppu.lcd.ly, self.ppu.lcd.dma
             );
             let debug_pixelcontext_output: String = format!(
-                "PFC: STATE {:?} PI_LEN {}", self.ppu.pfc.fetch_state, self.ppu.pfc.pixel_info.len()
+                "PFC: STATE {:?} PI_LEN {}",
+                self.ppu.pfc.fetch_state,
+                self.ppu.pfc.pixel_info.len()
             );
 
-            let debug_output = format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
+            let debug_output =
+                format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
             print!("{debug_output}");
             crate::common::debug_write(&debug_output);
         }
-        
+
         self.ppu.line_ticks += 1;
 
         match self.ppu.lcd.get_mode() {
@@ -239,8 +238,8 @@ impl Bus {
             FetchState::Tile => {
                 if self.ppu.lcd.is_bgw_enabled() {
                     let address = self.ppu.lcd.bg_map_area()
-                        + (self.ppu.pfc.map_x / 8) as u16
-                        + ((self.ppu.pfc.map_y / 8) as u16 * 32);
+                        + (self.ppu.pfc.map_x as u16 / 8)
+                        + ((self.ppu.pfc.map_y as u16 / 8) * 32);
                     self.ppu.pfc.background_fetch_data[0] = self.read(address);
 
                     if self.ppu.lcd.bwg_data_area() == 0x8800 {
@@ -255,7 +254,8 @@ impl Bus {
             FetchState::Data0 => {
                 let address = self.ppu.lcd.bwg_data_area()
                     + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
-                    + self.ppu.pfc.tile_y as u16;
+                    + self.ppu.pfc.tile_y as u16
+                    + 1;
                 self.ppu.pfc.background_fetch_data[1] = self.read(address);
 
                 self.ppu.pfc.fetch_state = FetchState::Data1;

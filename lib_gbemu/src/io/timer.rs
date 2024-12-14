@@ -32,16 +32,16 @@ impl Timer {
 
         match self.tac & 0b11 {
             0b00 => {
-                timer_update = (prev_divider & (1 << 9)) != 0 && self.div & (1 << 9) == 0;
+                timer_update = (prev_divider & (1 << 9) != 0) && (!(self.div & (1 << 9))) != 0;
             }
             0b01 => {
-                timer_update = (prev_divider & (1 << 3)) != 0 && self.div & (1 << 3) == 0;
+                timer_update = (prev_divider & (1 << 3) != 0) && (!(self.div & (1 << 3))) != 0;
             }
             0b10 => {
-                timer_update = (prev_divider & (1 << 5)) != 0 && self.div & (1 << 5) == 0;
+                timer_update = (prev_divider & (1 << 5) != 0) && (!(self.div & (1 << 5))) != 0;
             }
             0b11 => {
-                timer_update = (prev_divider & (1 << 7)) != 0 && self.div & (1 << 7) == 0;
+               timer_update = (prev_divider & (1 << 7) != 0) && (!(self.div & (1 << 7))) != 0;
             }
             _ => {}
         }

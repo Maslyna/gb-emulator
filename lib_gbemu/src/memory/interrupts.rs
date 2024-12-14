@@ -60,32 +60,26 @@ impl Default for InterruptState {
     }
 }
 
-pub fn handle_interrupts(cpu: &mut Cpu, bus: &mut Bus) {
-    const INTERRUPTS: [Interrupt; 5] = [
-        Interrupt::VBlank,
-        Interrupt::LcdStat,
-        Interrupt::Timer,
-        Interrupt::Serial,
-        Interrupt::Joypad,
-    ];
-    for interrupt in INTERRUPTS {
-        if interrupt_check(cpu, bus, interrupt, interrupt.address()) {
-            return;
-        }
+pub fn handle(cpu: &mut Cpu, bus: &mut Bus) {
+    match () {
+        _ if check(cpu, bus, Interrupt::VBlank,  0x40) => (),
+        _ if check(cpu, bus, Interrupt::LcdStat,  0x48) => (),
+        _ if check(cpu, bus, Interrupt::Timer,  0x50) => (),
+        _ if check(cpu, bus, Interrupt::Serial,  0x58) => (),
+        _ if check(cpu, bus, Interrupt::Joypad,  0x60) => (),
+        _ => (),
     }
 }
 
-fn interrupt_handle(cpu: &mut Cpu, bus: &mut Bus, address: u16) {
-    cpu.stack_push16(cpu.regs.pc, bus);
-    cpu.regs.pc = address;
-}
 
-fn interrupt_check(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt, address: u16) -> bool {
+fn check(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt, address: u16) -> bool {
     if !bus.interrupts.is_active(interrupt) {
         return false;
     }
 
-    interrupt_handle(cpu, bus, address);
+    cpu.stack_push16(cpu.regs.pc, bus);
+    cpu.regs.pc = address;
+
     bus.interrupts.remove_flag(interrupt);
     cpu.is_halted = false;
     cpu.interrupt_master_enabled = false;

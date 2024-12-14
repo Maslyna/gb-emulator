@@ -23,6 +23,7 @@ pub struct Lcd {
     pub sp2_colors: [u32; 4],
 }
 
+#[repr(u8)]
 enum Pallete {
     BgColors,
     Sp1,
@@ -31,7 +32,7 @@ enum Pallete {
 
 impl Lcd {
     pub fn new() -> Self {
-        Self {
+        let mut lcd = Self {
             lcdc: 0x91,
             lcds: 0,
             scroll_x: 0,
@@ -46,26 +47,17 @@ impl Lcd {
             bg_colors: PALETTE_COLORS,
             sp1_colors: PALETTE_COLORS,
             sp2_colors: PALETTE_COLORS,
-        }
+        };
+        lcd.set_mode(LcdMode::Oam);
+        lcd
     }
 
     pub fn read(&self, address: u16) -> u8 {
         let offset = address.wrapping_sub(0xFF40);
 
-        match offset {
-            0x00 => self.lcdc,
-            0x01 => self.lcds,
-            0x02 => self.scroll_y,
-            0x03 => self.scroll_x,
-            0x04 => self.ly,
-            0x05 => self.ly_compare,
-            0x06 => self.dma,
-            0x07 => self.bg_palette,
-            0x08 => self.obj_palette[0],
-            0x09 => self.obj_palette[1],
-            0x0A => self.win_y,
-            0x0B => self.win_x,
-            _ => unreachable!(),
+        unsafe {
+            let ptr = self as *const _ as *const u8;
+            *ptr.add(offset as usize)
         }
     }
 
@@ -73,21 +65,10 @@ impl Lcd {
     pub fn write(&mut self, address: u16, value: u8) {
         let offset = address.wrapping_sub(0xFF40);
 
-        match offset {
-            0x00 => self.lcdc = value,
-            0x01 => self.lcds = value,
-            0x02 => self.scroll_y = value,
-            0x03 => self.scroll_x = value,
-            0x04 => self.ly = value,
-            0x05 => self.ly_compare = value,
-            0x06 => self.dma = value,
-            0x07 => self.bg_palette = value,
-            0x08 => self.obj_palette[0] = value,
-            0x09 => self.obj_palette[1] = value,
-            0x0A => self.win_y = value,
-            0x0B => self.win_x = value,
-            _ => unreachable!(),
-        };
+        unsafe {
+            let ptr = self as *mut _ as *mut u8;
+            *ptr.add(offset as usize) = value;
+        }
 
         match address {
             0xFF47 => self.set_pallete(value, Pallete::BgColors),
@@ -168,7 +149,8 @@ impl Lcd {
     }
 
     pub fn set_mode(&mut self, mode: LcdMode) {
-        self.lcds = (self.lcds & 0b1111_1100) | (mode as u8);
+        self.lcds &= !(0b11);
+        self.lcds |= mode as u8;
     }
 
     fn set_pallete(&mut self, data: u8, palette: Pallete) {
@@ -182,7 +164,7 @@ impl Lcd {
             .iter_mut()
             .enumerate()
             .for_each(|(i, color)| {
-                *color = PALETTE_COLORS[((data >> (i * 2)) & 0b0000_0011) as usize];
+                *color = PALETTE_COLORS[((data >> (i * 2)) & 0b11) as usize];
             });
     }
 }

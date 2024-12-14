@@ -7,7 +7,7 @@ use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
 use crate::cpu::regs::Registers;
-use crate::{memory::interrupts::handle_interrupts, memory::Bus};
+use crate::{memory::interrupts::handle, memory::Bus};
 use std::fmt::Write;
 
 const DEBUG: bool = false;
@@ -91,7 +91,7 @@ impl Cpu {
                 debug_write(&debug_data);
             }
 
-            self.execute(bus);
+            instruction::execute(self, bus);
         } else {
             bus.cycle(1);
 
@@ -101,17 +101,13 @@ impl Cpu {
         }
 
         if self.interrupt_master_enabled {
-            handle_interrupts(self, bus);
+            handle(self, bus);
             self.enabling_ime = false;
         }
 
         if self.enabling_ime {
             self.interrupt_master_enabled = true;
         }
-    }
-
-    pub fn execute(&mut self, bus: &mut Bus) {
-        instruction::process(self, bus)
     }
 
     pub fn fetch_instruction(&mut self, bus: &Bus) {

@@ -2,7 +2,7 @@
 
 mod process;
 
-pub use self::process::process;
+pub use self::process::execute;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Instruction {

@@ -3,9 +3,9 @@ use self::regs::CpuFlag as Flag;
 use crate::cpu::*;
 use crate::memory::*;
 
-pub fn process(cpu: &mut Cpu, bus: &mut Bus) {
+pub fn execute(cpu: &mut Cpu, bus: &mut Bus) {
     match cpu.cur_inst.in_type {
-        IT::None => panic!("INVALID INSTRUCTION: {:?}", cpu.cur_inst),
+        IT::None => panic!("INVALID INSTRUCTION: {:?}, {}", cpu.cur_inst, cpu.cur_opcode),
         IT::Nop => nop_in(),
         IT::Ld => ld_in(cpu, bus),
         IT::Inc => inc_in(cpu, bus),
