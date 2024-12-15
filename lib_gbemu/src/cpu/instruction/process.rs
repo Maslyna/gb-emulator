@@ -74,7 +74,7 @@ fn ld_in(cpu: &mut Cpu, bus: &mut Bus) {
         return;
     }
 
-    if cpu.cur_inst.mode == AM::HLRegsSP {
+    if cpu.cur_inst.mode == AM::HLRegSPReg {
         let reg_val = cpu.read_reg(cpu.cur_inst.r2);
         let offset = cpu.fetched_data;
         let hflag = ((reg_val & 0xF) + (offset & 0xF)) >= 0x10;

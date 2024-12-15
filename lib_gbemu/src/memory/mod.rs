@@ -70,6 +70,9 @@ impl Bus {
     }
 
     pub fn read(&self, address: u16) -> u8 {
+        if address == 0xDFFC {
+            println!("DEBUG");
+        }
         match address {
             // ROM DATA
             ..0x8000 => self.rom.read(address),

@@ -8,7 +8,7 @@ pub fn reverse(n: u16) -> u16 {
 
 #[allow(dead_code)]
 const DEBUG_FILE: &str = "debug_out.txt";
-const DEBUG_OUTPUT: bool = true;
+const DEBUG_OUTPUT: bool = false;
 
 #[allow(dead_code)]
 pub fn debug_write(data: &str) {
@@ -19,7 +19,7 @@ pub fn debug_write(data: &str) {
             .open(DEBUG_FILE);
 
         if let Ok(mut f) = file {
-            write!(f, "{}", data).unwrap();
+            f.write_all(data.as_bytes()).unwrap();
         }
     }
 }

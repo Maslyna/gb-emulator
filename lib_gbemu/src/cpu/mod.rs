@@ -10,7 +10,7 @@ use crate::cpu::regs::Registers;
 use crate::{memory::interrupts::handle, memory::Bus};
 use std::fmt::Write;
 
-const DEBUG: bool = false;
+const DEBUG: bool = true;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -64,6 +64,7 @@ impl Cpu {
 
             bus.cycle(1);
             self.fetch_data(bus);
+            
 
             if DEBUG {
                 let instruction_view = instruction_to_str(self, bus);
@@ -200,7 +201,7 @@ impl Cpu {
                 bus.cycle(1);
                 self.regs.pc += 1;
             }
-            AM::HLRegsSP => {
+            AM::HLRegSPReg => {
                 self.fetched_data = bus.read(self.regs.pc) as u16;
                 bus.cycle(1);
                 self.regs.pc += 1;
@@ -459,7 +460,7 @@ fn instruction_to_str(cpu: &Cpu, bus: &Bus) -> String {
             )
             .unwrap();
         }
-        AM::HLRegsSP => {
+        AM::HLRegSPReg => {
             write!(&mut result, " ({:?}), SP+{:?}", inst.r1, fetched_data as u8).unwrap();
         }
         AM::D8 => {

@@ -30,7 +30,7 @@ pub enum AddressMode {
     HLDReg,   // Decrement HL + register
     RegA8,    // Register + 8-bit address
     A8Reg,    // 8-bit address + register
-    HLRegsSP, // HL + stack pointer register
+    HLRegSPReg, // HL + stack pointer register
     D16,      // 16-bit data
     D8,       // 8-bit data
     D16Reg,   // 16-bit data + register
@@ -1732,7 +1732,7 @@ impl Instruction {
             };
             inst[0xF8] = Instruction {
                 in_type: IT::Ld,
-                mode: AM::HLRegsSP,
+                mode: AM::HLRegSPReg,
                 r1: RT::HL,
                 r2: RT::SP,
                 ..Instruction::default()

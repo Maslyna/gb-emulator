@@ -12,6 +12,7 @@ use super::{X_RES, Y_RES};
 const LINES_PER_FRAME: u32 = 154;
 const TICKS_PER_LINE: u32 = 456;
 const FRAME_BUFFER_SIZE: usize = (X_RES * Y_RES) as usize;
+const DEBUG: bool = false;
 
 #[derive(Debug)]
 enum FetchState {
@@ -177,8 +178,7 @@ impl Ppu {
         }
 
         let x = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
-        for bit in 0..8 {
-            let bit = 7 - bit;
+        for bit in (0..8).rev() {
             let lo: u8 = ((self.pfc.background_fetch_data[1] & (1 << bit)) != 0) as u8;
             let hi: u8 = (((self.pfc.background_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
 
@@ -200,8 +200,6 @@ impl Ppu {
 
 impl Bus {
     pub fn ppu_tick(&mut self) {
-        const DEBUG: bool = false;
-
         if DEBUG {
             let debug_ppu_output = format!(
                 "PPU: FRAME {} FCOUNT {} LINET {} ",
