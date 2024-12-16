@@ -2,9 +2,10 @@ use crate::cpu::Cpu;
 use crate::memory::Bus;
 
 pub const INTERRUPT_ENABLE_ADDRESS: u16 = 0xFFFF;
-pub const _INTERRUPT_FLAGS_ADDRESS: u16 = 0xFF0F;
+pub const INTERRUPT_FLAGS_ADDRESS: u16 = 0xFF0F;
 
 #[derive(Clone, Copy)]
+#[repr(u8)]
 pub enum Interrupt {
     VBlank = 0x01,
     LcdStat = 0x02,
@@ -44,13 +45,21 @@ impl InterruptState {
     }
 
     pub fn is_active(&self, interrupt: Interrupt) -> bool {
-        let it = interrupt as u8;
+        let interrupt = interrupt as u8;
 
-        self.flags & it == it && self.enabled & it == it
+        self.flags & interrupt == interrupt && self.enabled & interrupt == interrupt
     }
 
     pub fn remove_flag(&mut self, interrupt: Interrupt) {
         self.flags &= !(interrupt as u8);
+    }
+
+    pub fn has_any_flag(&self) -> bool {
+        self.is_active(Interrupt::Timer)
+            || self.is_active(Interrupt::VBlank)
+            || self.is_active(Interrupt::Joypad)
+            || self.is_active(Interrupt::LcdStat)
+            || self.is_active(Interrupt::Serial)
     }
 }
 
@@ -71,10 +80,9 @@ pub fn handle(cpu: &mut Cpu, bus: &mut Bus) {
     }
 }
 
-
 fn check(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt) -> bool {
     let address = interrupt.address();
-    
+
     if !bus.interrupts.is_active(interrupt) {
         return false;
     }

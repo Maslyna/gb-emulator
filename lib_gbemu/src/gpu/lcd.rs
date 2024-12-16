@@ -48,7 +48,7 @@ impl Lcd {
             sp1_colors: PALETTE_COLORS,
             sp2_colors: PALETTE_COLORS,
         };
-        lcd.set_mode(LcdMode::Oam);
+        lcd.set_lcds_mode(LcdMode::Oam);
         lcd
     }
 
@@ -78,24 +78,24 @@ impl Lcd {
         }
     }
 
-    pub fn lyc(&self) -> bool {
-        bit!(self.lcds, 2)
+    pub fn lyc(&self) -> u8 {
+        self.lcds & 0b0000_0100
     }
 
-    pub fn set_lyc(&mut self, value: bool) {
-        set_bit!(self.lcds, 2, value);
+    pub fn set_lyc(&mut self, value: u8) {
+        self.lcds = (self.lcds & 0b1111_1011) | (value << 2);
     }
 
-    pub fn is_bgw_enabled(&self) -> bool {
-        bit!(self.lcdc, 0)
+    pub fn is_bgw_enabled(&self) -> u8 {
+        self.lcdc & 0b0000_0001
     }
 
-    pub fn is_obj_enabled(&self) -> bool {
-        bit!(self.lcdc, 1)
+    pub fn is_obj_enabled(&self) -> u8 {
+        self.lcdc & 0b0000_0010
     }
 
-    pub fn is_window_enabled(&self) -> bool {
-        bit!(self.lcdc, 5)
+    pub fn is_window_enabled(&self) -> u8 {
+        self.lcdc & 0b0010_0000
     }
 
     pub fn is_lcd_enabled(&self) -> bool {
@@ -103,7 +103,7 @@ impl Lcd {
     }
 
     pub fn obj_height(&self) -> u8 {
-        if bit!(self.lcdc, 2) {
+        if self.lcdc & 0b0000_0100 != 0 {
             16
         } else {
             8
@@ -111,7 +111,7 @@ impl Lcd {
     }
 
     pub fn bg_map_area(&self) -> u16 {
-        if bit!(self.lcdc, 3) {
+        if self.lcdc & 0b0000_1000 != 0 {
             0x9C00
         } else {
             0x9800
@@ -119,7 +119,7 @@ impl Lcd {
     }
 
     pub fn bwg_data_area(&self) -> u16 {
-        if bit!(self.lcdc, 4) {
+        if self.lcdc & 0b0001_0000 != 0 {
             0x8000
         } else {
             0x8800
@@ -127,14 +127,14 @@ impl Lcd {
     }
 
     pub fn win_map_area(&self) -> u16 {
-        if bit!(self.lcdc, 6) {
+        if self.lcdc & 0b0100_0000 != 0 {
             0x9C00
         } else {
             0x9800
         }
     }
 
-    pub fn get_mode(&self) -> LcdMode {
+    pub fn get_lcds_mode(&self) -> LcdMode {
         match self.lcds & 0b0000_0011 {
             0 => LcdMode::HBlank,
             1 => LcdMode::VBlank,
@@ -148,9 +148,8 @@ impl Lcd {
         self.lcds & (src as u8)
     }
 
-    pub fn set_mode(&mut self, mode: LcdMode) {
-        self.lcds &= !(0b11);
-        self.lcds |= mode as u8;
+    pub fn set_lcds_mode(&mut self, mode: LcdMode) {
+        self.lcds = (self.lcds & 0b1111_1100) | (mode as u8);
     }
 
     fn set_pallete(&mut self, data: u8, palette: Pallete) {

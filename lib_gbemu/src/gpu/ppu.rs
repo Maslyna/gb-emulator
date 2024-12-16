@@ -132,13 +132,13 @@ impl Ppu {
         self.lcd.ly += 1;
 
         if self.lcd.ly == self.lcd.ly_compare {
-            self.lcd.set_lyc(true);
+            self.lcd.set_lyc(1);
 
             if self.lcd.get_stat_interrupt(StatInterruptSource::Lyc) != 0 {
                 self.set_interrupt(Interrupt::LcdStat);
             }
         } else {
-            self.lcd.set_lyc(false);
+            self.lcd.set_lyc(0);
         }
     }
 
@@ -223,7 +223,7 @@ impl Bus {
 
         self.ppu.line_ticks += 1;
 
-        match self.ppu.lcd.get_mode() {
+        match self.ppu.lcd.get_lcds_mode() {
             LcdMode::Oam => self.mode_oam(),
             LcdMode::Xfer => self.mode_xfer(),
             LcdMode::VBlank => self.mode_vblank(),
@@ -234,7 +234,7 @@ impl Bus {
     fn pipeline_fetch(&mut self) {
         match self.ppu.pfc.fetch_state {
             FetchState::Tile => {
-                if self.ppu.lcd.is_bgw_enabled() {
+                if self.ppu.lcd.is_bgw_enabled() != 0 {
                     let address = self.ppu.lcd.bg_map_area()
                         + (self.ppu.pfc.map_x as u16 / 8)
                         + ((self.ppu.pfc.map_y as u16 / 8) * 32);
@@ -294,7 +294,7 @@ impl Bus {
 
     fn mode_oam(&mut self) {
         if self.ppu.line_ticks >= 80 {
-            self.ppu.lcd.set_mode(LcdMode::Xfer);
+            self.ppu.lcd.set_lcds_mode(LcdMode::Xfer);
 
             self.ppu.pfc.fetch_state = FetchState::Tile;
             self.ppu.pfc.line_x = 0;
@@ -307,9 +307,9 @@ impl Bus {
     fn mode_xfer(&mut self) {
         self.pipeline_process();
 
-        if self.ppu.pfc.pushed_x as u32 >= X_RES {
+        if self.ppu.pfc.pushed_x >= X_RES as u8 {
             self.ppu.pipeline_fifo_reset();
-            self.ppu.lcd.set_mode(LcdMode::HBlank);
+            self.ppu.lcd.set_lcds_mode(LcdMode::HBlank);
 
             if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {
                 self.ppu.set_interrupt(Interrupt::LcdStat);
@@ -321,13 +321,16 @@ impl Bus {
         if self.ppu.line_ticks >= TICKS_PER_LINE {
             self.ppu.increment_ly();
 
-            if self.ppu.lcd.ly as u32 >= Y_RES {
-                self.ppu.lcd.set_mode(LcdMode::VBlank);
+            if self.ppu.lcd.ly >= Y_RES as u8 {
+                self.ppu.lcd.set_lcds_mode(LcdMode::VBlank);
+
                 self.ppu.set_interrupt(Interrupt::VBlank);
 
                 if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::VBlank) != 0 {
                     self.ppu.set_interrupt(Interrupt::LcdStat);
                 }
+
+                self.ppu.current_frame += 1;
 
                 // TODO: into Screen trait
                 let end = Emu::get_ticks();
@@ -345,10 +348,10 @@ impl Bus {
                     println!("FPS: {fps}");
                 }
 
-                self.ppu.current_frame += 1;
+                self.ppu.frame_count += 1;
                 self.ppu.prev_frame_time = Emu::get_ticks();
             } else {
-                self.ppu.lcd.set_mode(LcdMode::Oam);
+                self.ppu.lcd.set_lcds_mode(LcdMode::Oam);
             }
 
             self.ppu.line_ticks = 0;
@@ -359,9 +362,9 @@ impl Bus {
         if self.ppu.line_ticks >= TICKS_PER_LINE {
             self.ppu.increment_ly();
 
-            if self.ppu.lcd.ly as u32 >= LINES_PER_FRAME {
+            if self.ppu.lcd.ly >= LINES_PER_FRAME as u8 {
                 self.ppu.lcd.ly = 0;
-                self.ppu.lcd.set_mode(LcdMode::Oam);
+                self.ppu.lcd.set_lcds_mode(LcdMode::Oam);
             }
 
             self.ppu.line_ticks = 0;

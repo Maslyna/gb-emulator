@@ -57,6 +57,10 @@ impl Bus {
                 self.timer.ticks = self.timer.ticks.wrapping_add(1);
                 self.timer.tick();
                 self.ppu_tick();
+
+                if self.timer.ticks == 65664 {
+                    println!("BREAK");
+                }
             }
 
             self.dma_tick();
@@ -70,12 +74,12 @@ impl Bus {
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        if address == 0xDFFC {
-            println!("DEBUG");
-        }
         match address {
+            interrupts::INTERRUPT_FLAGS_ADDRESS => self.interrupts.flags,
+            // CPU ENABLED REGISTERS
+            interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             // ROM DATA
-            ..0x8000 => self.rom.read(address),
+            0..0x8000 => self.rom.read(address),
             // Char/Map DATA
             0x8000..0xA000 => self.ppu.vram_read(address),
             // Cartridge RAM
@@ -104,15 +108,13 @@ impl Bus {
                 0xFF01 => self.serial_data[0],
                 0xFF02 => self.serial_data[1],
                 0xFF04..=0xFF07 => self.timer.read(address),
-                0xFF0F => self.interrupts.flags,
+               
                 0xFF40..=0xFF4B => self.ppu.lcd.read(address),
                 _ => {
                     eprintln!("UNSUPPORTED BUS READ {:04X}", address);
                     0
                 }
             },
-            // CPU ENABLED REGISTERS
-            interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled,
             _ => self.ram.hram_read(address),
         }
     }
@@ -125,7 +127,13 @@ impl Bus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
+        if interrupts::INTERRUPT_ENABLE_ADDRESS == address || interrupts::INTERRUPT_FLAGS_ADDRESS == address {
+            println!("DEBUG_IE");
+        }
         match address {
+            // CPU SET ENABLE REGISTER
+            interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled = value,
+            interrupts::INTERRUPT_FLAGS_ADDRESS => self.interrupts.flags = value,
             // ROM DATA
             ..0x8000 => self.rom.write(address, value),
             // Char/Map DATA
@@ -137,25 +145,28 @@ impl Bus {
             // Reserved echo RAM
             0xE000..0xFE00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // OAM
-            0xFE00..0xFEA0 => self.ppu.oam_write(address, value),
+            0xFE00..0xFEA0 => {
+                if self.dma.is_transfering() {
+                    return;
+                }
+                self.ppu.oam_write(address, value);
+            },
             // Reserved unusable
-            0xFEA0..0xFF00 => eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xFEA0..0xFF00 => (),//eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // IO Registers
             0xFF00..0xFF80 => match address {
                 0xFF01 => self.serial_data[0] = value,
                 0xFF02 => self.serial_data[1] = value,
                 0xFF04..=0xFF07 => self.timer.write(address, value),
-                0xFF0F => self.interrupts.flags = value,
+               
                 0xFF40..=0xFF4B => {
-                    if address == 0xFF46 {
+                    if (address - 0xFF40) == 0xFF46 {
                         self.dma.start(value);
                     }
                     self.ppu.lcd.write(address, value);
                 }
-                _ => eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
+                _ => (), // eprintln!("UNSUPPORTED BUS WRITE {:04X} VALUE {:04X}", address, value),
             },
-            // CPU SET ENABLE REGISTER
-            0xFFFF => self.interrupts.enabled = value,
             _ => self.ram.hram_write(address, value),
         }
     }

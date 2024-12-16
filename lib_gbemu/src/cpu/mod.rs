@@ -2,7 +2,7 @@ mod instruction;
 mod regs;
 
 #[allow(unused_imports)]
-use crate::common::*;
+use crate::common;
 use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
@@ -10,7 +10,7 @@ use crate::cpu::regs::Registers;
 use crate::{memory::interrupts::handle, memory::Bus};
 use std::fmt::Write;
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 #[repr(u8)]
 #[derive(Debug)]
@@ -49,16 +49,12 @@ impl Cpu {
             cur_inst: Instruction::default(),
             is_halted: false,
             _stepping: false,
-            interrupt_master_enabled: true,
+            interrupt_master_enabled: false,
             enabling_ime: true,
         }
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
-        if self.regs.pc == 518 {
-            print!("");
-        }
-
         if !self.is_halted {
             self.fetch_instruction(bus);
 
@@ -89,7 +85,11 @@ impl Cpu {
                     self.regs.l,
                     self.regs.sp).to_uppercase();
                 print!("{}", debug_data);
-                debug_write(&debug_data);
+                common::debug_write(&debug_data);
+            }
+
+            if bus.timer.ticks == 1616660 {
+                println!("DEBUG");
             }
 
             instruction::execute(self, bus);
