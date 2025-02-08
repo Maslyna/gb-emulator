@@ -37,13 +37,14 @@ const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
 struct Emulator(Cpu, Bus);
 
 fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
+    use sdl2::rect::Rect;
     let buffer = &bus.ppu.video_buffer;
 
     for line in 0..Y_RES {
         for x in 0..X_RES {
             let index = x + (line * X_RES);
             let rect =
-                sdl2::rect::Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
+                Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
             let color = buffer[index as usize].to_color();
 
             canvas.set_draw_color(color);

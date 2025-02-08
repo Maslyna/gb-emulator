@@ -13,15 +13,17 @@
 // 0xFF80 - 0xFFFE : Zero Page
 
 mod dma;
+
 pub mod interrupts;
 pub mod ram;
-use self::interrupts::*;
 
 use self::dma::Dma;
+use self::interrupts::*;
 use self::ram::Ram;
 use crate::cartridge::rom::Rom;
 use crate::emu::Emu;
 use crate::gpu::ppu::Ppu;
+use crate::io::gamepad::Gamepad;
 use crate::io::timer::Timer;
 
 #[derive(Debug)]
@@ -34,6 +36,9 @@ pub struct Bus {
     dma: Dma,
     pub emu: Emu,
     pub timer: Timer,
+
+    pub gamepad: Gamepad,
+
     serial_data: [u8; 2],
 }
 
@@ -47,6 +52,9 @@ impl Bus {
             emu: Emu::new(),
             interrupts: InterruptState::new(),
             timer: Timer::new(),
+
+            gamepad: Gamepad::new(),
+
             serial_data: [0; 2],
         }
     }
@@ -58,19 +66,15 @@ impl Bus {
                 self.timer.tick();
                 self.ppu_tick();
 
-                if self.timer.ticks == 65664 {
-                    println!("BREAK");
-                }
+                self.interrupts.flags |= self.timer.interrupts;
+                self.timer.interrupts = 0;
+
+                self.interrupts.flags |= self.ppu.interrupts;
+                self.ppu.interrupts = 0;
             }
 
             self.dma_tick();
         }
-
-        self.interrupts.flags |= self.timer.interrupts;
-        self.timer.interrupts = 0;
-
-        self.interrupts.flags |= self.ppu.interrupts;
-        self.ppu.interrupts = 0;
     }
 
     pub fn read(&self, address: u16) -> u8 {
@@ -99,16 +103,14 @@ impl Bus {
                 self.ppu.oam_read(address)
             }
             // Reserved unusable
-            0xFEA0..0xFF00 => {
-                eprintln!("UNSUPPORTED BUS READ {:04X}", address);
-                0
-            }
+            0xFEA0..0xFF00 => 0,
             // IO Registers
             0xFF00..0xFF80 => match address {
+                0xFF00 => self.gamepad.calculate_output(),
                 0xFF01 => self.serial_data[0],
                 0xFF02 => self.serial_data[1],
                 0xFF04..=0xFF07 => self.timer.read(address),
-               
+
                 0xFF40..=0xFF4B => self.ppu.lcd.read(address),
                 _ => {
                     eprintln!("UNSUPPORTED BUS READ {:04X}", address);
@@ -127,9 +129,6 @@ impl Bus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
-        if interrupts::INTERRUPT_ENABLE_ADDRESS == address || interrupts::INTERRUPT_FLAGS_ADDRESS == address {
-            println!("DEBUG_IE");
-        }
         match address {
             // CPU SET ENABLE REGISTER
             interrupts::INTERRUPT_ENABLE_ADDRESS => self.interrupts.enabled = value,
@@ -150,15 +149,15 @@ impl Bus {
                     return;
                 }
                 self.ppu.oam_write(address, value);
-            },
+            }
             // Reserved unusable
-            0xFEA0..0xFF00 => (),//eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
+            0xFEA0..0xFF00 => (), //eprintln!("UNSUPPORTED BUS WRITE {:04X}", address),
             // IO Registers
             0xFF00..0xFF80 => match address {
+                0xFF00 => self.gamepad.set_selector(value),
                 0xFF01 => self.serial_data[0] = value,
                 0xFF02 => self.serial_data[1] = value,
                 0xFF04..=0xFF07 => self.timer.write(address, value),
-               
                 0xFF40..=0xFF4B => {
                     if (address - 0xFF40) == 0xFF46 {
                         self.dma.start(value);

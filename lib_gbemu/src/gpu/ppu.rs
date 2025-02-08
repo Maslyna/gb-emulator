@@ -240,7 +240,7 @@ impl Bus {
                         + ((self.ppu.pfc.map_y as u16 / 8) * 32);
                     self.ppu.pfc.background_fetch_data[0] = self.read(address);
 
-                    if self.ppu.lcd.bwg_data_area() == 0x8800 {
+                    if self.ppu.lcd.bgw_data_area() == 0x8800 {
                         self.ppu.pfc.background_fetch_data[0] =
                             self.ppu.pfc.background_fetch_data[0].wrapping_add(128);
                     }
@@ -250,7 +250,7 @@ impl Bus {
                 self.ppu.pfc.fetch_x = self.ppu.pfc.fetch_x.wrapping_add(8);
             }
             FetchState::Data0 => {
-                let address = self.ppu.lcd.bwg_data_area()
+                let address = self.ppu.lcd.bgw_data_area()
                     + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
                     + self.ppu.pfc.tile_y as u16
                     + 1;
@@ -259,7 +259,7 @@ impl Bus {
                 self.ppu.pfc.fetch_state = FetchState::Data1;
             }
             FetchState::Data1 => {
-                let address = self.ppu.lcd.bwg_data_area()
+                let address = self.ppu.lcd.bgw_data_area()
                     + (self.ppu.pfc.background_fetch_data[0] as u16 * 16)
                     + (self.ppu.pfc.tile_y + 1) as u16;
                 self.ppu.pfc.background_fetch_data[2] = self.read(address);

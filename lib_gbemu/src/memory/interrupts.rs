@@ -69,18 +69,20 @@ impl Default for InterruptState {
     }
 }
 
-pub fn handle(cpu: &mut Cpu, bus: &mut Bus) {
-    match () {
-        _ if check(cpu, bus, Interrupt::VBlank) => (),
-        _ if check(cpu, bus, Interrupt::LcdStat) => (),
-        _ if check(cpu, bus, Interrupt::Timer) => (),
-        _ if check(cpu, bus, Interrupt::Serial) => (),
-        _ if check(cpu, bus, Interrupt::Joypad) => (),
-        _ => (),
+impl Cpu {
+    pub fn handle_interrupts(&mut self, bus: &mut Bus) {
+        match () {
+            _ if process_interrupt(self, bus, Interrupt::VBlank) => (),
+            _ if process_interrupt(self, bus, Interrupt::LcdStat) => (),
+            _ if process_interrupt(self, bus, Interrupt::Timer) => (),
+            _ if process_interrupt(self, bus, Interrupt::Serial) => (),
+            _ if process_interrupt(self, bus, Interrupt::Joypad) => (),
+            _ => (),
+        }
     }
 }
 
-fn check(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt) -> bool {
+fn process_interrupt(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt) -> bool {
     let address = interrupt.address();
 
     if !bus.interrupts.is_active(interrupt) {

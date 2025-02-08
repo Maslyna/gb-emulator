@@ -28,23 +28,13 @@ impl Timer {
         let prev_divider = self.div;
         self.div = self.div.wrapping_add(1);
 
-        let mut timer_update = false;
-
-        match self.tac & 0b11 {
-            0b00 => {
-                timer_update = (prev_divider & (1 << 9) != 0) && (!(self.div & (1 << 9))) != 0;
-            }
-            0b01 => {
-                timer_update = (prev_divider & (1 << 3) != 0) && (!(self.div & (1 << 3))) != 0;
-            }
-            0b10 => {
-                timer_update = (prev_divider & (1 << 5) != 0) && (!(self.div & (1 << 5))) != 0;
-            }
-            0b11 => {
-               timer_update = (prev_divider & (1 << 7) != 0) && (!(self.div & (1 << 7))) != 0;
-            }
-            _ => {}
-        }
+        let timer_update = match self.tac & 0b11 {
+            0b00 => (prev_divider & (1 << 9) != 0) && (!(self.div & (1 << 9))) != 0,
+            0b01 => (prev_divider & (1 << 3) != 0) && (!(self.div & (1 << 3))) != 0,
+            0b10 => (prev_divider & (1 << 5) != 0) && (!(self.div & (1 << 5))) != 0,
+            0b11 => (prev_divider & (1 << 7) != 0) && (!(self.div & (1 << 7))) != 0,
+            _ => false,
+        };
 
         if timer_update && self.is_timer_enabled() {
             self.tima += 1;

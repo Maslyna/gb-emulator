@@ -7,7 +7,7 @@ use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
 use crate::cpu::regs::Registers;
-use crate::{memory::interrupts::handle, memory::Bus};
+use crate::{memory::Bus};
 use std::fmt::Write;
 
 const DEBUG: bool = false;
@@ -88,11 +88,7 @@ impl Cpu {
                 common::debug_write(&debug_data);
             }
 
-            if bus.timer.ticks == 1616660 {
-                println!("DEBUG");
-            }
-
-            instruction::execute(self, bus);
+            self.execute(bus);
         } else {
             bus.cycle(1);
 
@@ -102,7 +98,7 @@ impl Cpu {
         }
 
         if self.interrupt_master_enabled {
-            handle(self, bus);
+            self.handle_interrupts(bus);
             self.enabling_ime = false;
         }
 

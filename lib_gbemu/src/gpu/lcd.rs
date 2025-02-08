@@ -1,6 +1,6 @@
 use super::{LcdMode, StatInterruptSource};
 
-const PALETTE_COLORS: [u32; 4] = super::COLORS_DEFAULT;
+const PALLETTE_COLORS: [u32; 4] = super::COLORS_DEFAULT;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -44,9 +44,9 @@ impl Lcd {
             obj_palette: [0xFF; 2],
             win_x: 0,
             win_y: 0,
-            bg_colors: PALETTE_COLORS,
-            sp1_colors: PALETTE_COLORS,
-            sp2_colors: PALETTE_COLORS,
+            bg_colors: PALLETTE_COLORS,
+            sp1_colors: PALLETTE_COLORS,
+            sp2_colors: PALLETTE_COLORS,
         };
         lcd.set_lcds_mode(LcdMode::Oam);
         lcd
@@ -118,7 +118,7 @@ impl Lcd {
         }
     }
 
-    pub fn bwg_data_area(&self) -> u16 {
+    pub fn bgw_data_area(&self) -> u16 {
         if self.lcdc & 0b0001_0000 != 0 {
             0x8000
         } else {
@@ -159,12 +159,10 @@ impl Lcd {
             Pallete::BgColors => (),
         };
 
-        self.bg_colors
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, color)| {
-                *color = PALETTE_COLORS[((data >> (i * 2)) & 0b11) as usize];
-            });
+        self.bg_colors[0] = PALLETTE_COLORS[(data & 0b0000_0011) as usize];
+        self.bg_colors[1] = PALLETTE_COLORS[((data >> 2) & 0b0000_0011) as usize];
+        self.bg_colors[2] = PALLETTE_COLORS[((data >> 4) & 0b0000_0011) as usize];
+        self.bg_colors[3] = PALLETTE_COLORS[((data >> 6) & 0b0000_0011) as usize];
     }
 }
 
