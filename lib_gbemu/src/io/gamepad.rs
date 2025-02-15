@@ -39,6 +39,10 @@ impl Gamepad {
         };
     }
 
+    pub fn set_state(&mut self, state: GamepadState) {
+        self.state = state;
+    }
+
     pub fn get_state(&self) -> &GamepadState {
         &self.state
     }

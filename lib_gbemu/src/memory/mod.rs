@@ -64,11 +64,10 @@ impl Bus {
             for _ in 0..4 {
                 self.timer.ticks = self.timer.ticks.wrapping_add(1);
                 self.timer.tick();
-                self.ppu_tick();
-
                 self.interrupts.flags |= self.timer.interrupts;
                 self.timer.interrupts = 0;
 
+                self.ppu_tick();
                 self.interrupts.flags |= self.ppu.interrupts;
                 self.ppu.interrupts = 0;
             }

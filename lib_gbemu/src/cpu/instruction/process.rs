@@ -80,12 +80,16 @@ impl Cpu {
 
         if self.cur_inst.mode == AM::HLRegSPReg {
             let reg_val = self.read_reg(self.cur_inst.r2);
-            let offset = self.fetched_data;
-            let hflag = ((reg_val & 0xF) + (offset & 0xF)) >= 0x10;
-            let cflag = (reg_val + offset) >= 0x100;
+            let fetched_data = self.fetched_data;
+            let hflag = ((reg_val & 0xF) + (fetched_data & 0xF)) >= 0x10;
+            let cflag = ((reg_val & 0xFF) + (fetched_data & 0xFF)) >= 0x100;
 
-            self.regs._set_flags(false, false, hflag, cflag);
-            self.set_reg(self.cur_inst.r1, reg_val.wrapping_add(offset as u8 as u16));
+            self.regs.set_flags(false, false, hflag, cflag);
+            self.set_reg(
+                self.cur_inst.r1,
+                self.read_reg(self.cur_inst.r2)
+                    .wrapping_add_signed(fetched_data as i8 as i16),
+            );
 
             return;
         }
@@ -110,8 +114,8 @@ impl Cpu {
     fn goto_in(&mut self, bus: &mut Bus, address: u16, pushpc: bool) {
         if self.check_cond() {
             if pushpc {
-                self.stack_push16(self.regs.pc, bus);
                 bus.cycle(2);
+                self.stack_push16(self.regs.pc, bus);
             }
 
             self.regs.pc = address;
@@ -321,19 +325,19 @@ impl Cpu {
     fn and_in(&mut self) {
         self.regs.a &= self.fetched_data as u8;
 
-        self.regs._set_flags(self.regs.a == 0, false, true, false);
+        self.regs.set_flags(self.regs.a == 0, false, true, false);
     }
 
     fn xor_in(&mut self) {
         self.regs.a ^= (self.fetched_data & 0xFF) as u8;
 
-        self.regs._set_flags(self.regs.a == 0, false, false, false);
+        self.regs.set_flags(self.regs.a == 0, false, false, false);
     }
 
     #[allow(clippy::identity_op)]
     fn or_in(&mut self) {
         self.regs.a |= self.fetched_data as u8 & 0xFF;
-        self.regs._set_flags(self.regs.a == 0, false, false, false);
+        self.regs.set_flags(self.regs.a == 0, false, false, false);
     }
 
     fn cp_in(&mut self) {
@@ -347,7 +351,7 @@ impl Cpu {
         let flag_h = ((a & 0x0F) - (data & 0x0F)) < 0;
         let flag_c = result < 0;
 
-        self.regs._set_flags(flag_z, flag_n, flag_h, flag_c);
+        self.regs.set_flags(flag_z, flag_n, flag_h, flag_c);
     }
 
     fn cb_in(&mut self, bus: &mut Bus) {
@@ -538,7 +542,7 @@ impl Cpu {
         reg_a = (reg_a << 1) | flag_c as u8;
         self.regs.a = reg_a;
 
-        self.regs._set_flags(false, false, false, flag_c);
+        self.regs.set_flags(false, false, false, flag_c);
     }
 
     fn rrca_in(&mut self) {
@@ -546,7 +550,7 @@ impl Cpu {
         self.regs.a >>= 1;
         self.regs.a |= res << 7;
 
-        self.regs._set_flags(false, false, false, res != 0);
+        self.regs.set_flags(false, false, false, res != 0);
     }
 
     fn rla_in(&mut self) {
@@ -555,7 +559,7 @@ impl Cpu {
         let c = (tmp >> 7) & 1;
 
         self.regs.a = (tmp << 1) | flag_c;
-        self.regs._set_flags(false, false, false, c != 0);
+        self.regs.set_flags(false, false, false, c != 0);
     }
 
     fn rra_in(&mut self) {

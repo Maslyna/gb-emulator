@@ -15,7 +15,7 @@ pub enum Interrupt {
 }
 
 impl Interrupt {
-    fn address(self) -> u16 {
+    const fn address(self) -> u16 {
         match self {
             Interrupt::VBlank => 0x0040,
             Interrupt::LcdStat => 0x0048,
@@ -55,11 +55,7 @@ impl InterruptState {
     }
 
     pub fn has_any_flag(&self) -> bool {
-        self.is_active(Interrupt::Timer)
-            || self.is_active(Interrupt::VBlank)
-            || self.is_active(Interrupt::Joypad)
-            || self.is_active(Interrupt::LcdStat)
-            || self.is_active(Interrupt::Serial)
+        (self.flags & self.enabled) != 0
     }
 }
 
@@ -72,29 +68,29 @@ impl Default for InterruptState {
 impl Cpu {
     pub fn handle_interrupts(&mut self, bus: &mut Bus) {
         match () {
-            _ if process_interrupt(self, bus, Interrupt::VBlank) => (),
-            _ if process_interrupt(self, bus, Interrupt::LcdStat) => (),
-            _ if process_interrupt(self, bus, Interrupt::Timer) => (),
-            _ if process_interrupt(self, bus, Interrupt::Serial) => (),
-            _ if process_interrupt(self, bus, Interrupt::Joypad) => (),
+            _ if self.process_interrupt(bus, Interrupt::VBlank) => (),
+            _ if self.process_interrupt(bus, Interrupt::LcdStat) => (),
+            _ if self.process_interrupt(bus, Interrupt::Timer) => (),
+            _ if self.process_interrupt(bus, Interrupt::Serial) => (),
+            _ if self.process_interrupt(bus, Interrupt::Joypad) => (),
             _ => (),
         }
     }
-}
 
-fn process_interrupt(cpu: &mut Cpu, bus: &mut Bus, interrupt: Interrupt) -> bool {
-    let address = interrupt.address();
+    fn process_interrupt(&mut self, bus: &mut Bus, interrupt: Interrupt) -> bool {
+        let address = interrupt.address();
 
-    if !bus.interrupts.is_active(interrupt) {
-        return false;
+        if !bus.interrupts.is_active(interrupt) {
+            return false;
+        }
+
+        self.stack_push16(self.regs.pc, bus);
+        self.regs.pc = address;
+
+        bus.interrupts.remove_flag(interrupt);
+        self.is_halted = false;
+        self.interrupt_master_enabled = false;
+
+        true
     }
-
-    cpu.stack_push16(cpu.regs.pc, bus);
-    cpu.regs.pc = address;
-
-    bus.interrupts.remove_flag(interrupt);
-    cpu.is_halted = false;
-    cpu.interrupt_master_enabled = false;
-
-    true
 }

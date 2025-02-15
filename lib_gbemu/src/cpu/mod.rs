@@ -1,24 +1,16 @@
 mod instruction;
 mod regs;
 
-#[allow(unused_imports)]
 use crate::common;
 use crate::cpu::instruction::{
     AddressMode as AM, ConditionType as CT, Instruction, RegisterType as RT,
 };
 use crate::cpu::regs::Registers;
-use crate::{memory::Bus};
+use crate::memory::Bus;
+
 use std::fmt::Write;
 
-const DEBUG: bool = false;
-
-#[repr(u8)]
-#[derive(Debug)]
-pub enum InterruptAction {
-    None,
-    Enable,
-    Disable,
-}
+const DEBUG: bool = true;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -32,10 +24,9 @@ pub struct Cpu {
     pub cur_inst: Instruction,
 
     pub is_halted: bool,
-    _stepping: bool,
 
     pub interrupt_master_enabled: bool,
-    pub enabling_ime: bool,
+    enabling_ime: bool,
 }
 
 impl Cpu {
@@ -48,24 +39,22 @@ impl Cpu {
             cur_opcode: 0,
             cur_inst: Instruction::default(),
             is_halted: false,
-            _stepping: false,
-            interrupt_master_enabled: false,
+            interrupt_master_enabled: true,
             enabling_ime: true,
         }
     }
 
     pub fn step(&mut self, bus: &mut Bus) {
         if !self.is_halted {
+            // 65534
             self.fetch_instruction(bus);
-
             bus.cycle(1);
             self.fetch_data(bus);
-            
 
             if DEBUG {
                 let instruction_view = instruction_to_str(self, bus);
                 let debug_data = format!(
-                    "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X}) A: {:02X} FLAGS: {}{}{}{} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X}\n",
+                    "{:08} - PC: {:04X} T: {}\tOP: ({:02X} {:02X} {:02X}) A: {:02X} FLAGS: {}{}{}{} BC: {:02X}{:02X} DE: {:02X}{:02X} HL: {:02X}{:02X} SP: {:04X} IF: {:02X} IE: {:02X}\n",
                     bus.timer.ticks,
                     self.regs.pc,
                     instruction_view,
@@ -73,19 +62,27 @@ impl Cpu {
                     bus.read(self.regs.pc + 1),
                     bus.read(self.regs.pc + 2),
                     self.regs.a,
-                    if self.regs.flag_z() {'Z'} else {'-'},
-                    if self.regs.flag_n() {'N'} else {'-'},
-                    if self.regs.flag_h() {'H'} else {'-'},
-                    if self.regs.flag_c() {'C'} else {'-'},
+                    if self.regs.flag_z() { 'Z' } else { '-' },
+                    if self.regs.flag_n() { 'N' } else { '-' },
+                    if self.regs.flag_h() { 'H' } else { '-' },
+                    if self.regs.flag_c() { 'C' } else { '-' },
                     self.regs.b,
                     self.regs.c,
                     self.regs.d,
                     self.regs.e,
                     self.regs.h,
                     self.regs.l,
-                    self.regs.sp).to_uppercase();
-                print!("{}", debug_data);
+                    self.regs.sp,
+                    bus.interrupts.flags,
+                    bus.interrupts.enabled
+                )
+                .to_uppercase();
+                // print!("{}", debug_data);
                 common::debug_write(&debug_data);
+            }
+
+            if bus.timer.ticks == 1610488 {
+                print!("BREAK");
             }
 
             self.execute(bus);
@@ -292,8 +289,8 @@ impl Cpu {
             // RT::BC => (self.regs.b as u16) << 8 | self.regs.c as u16,
             // RT::DE => (self.regs.d as u16) << 8 | self.regs.e as u16,
             // RT::HL => (self.regs.h as u16) << 8 | self.regs.l as u16,
-            RT::SP => self.regs.pc,
-            RT::PC => self.regs.sp,
+            RT::SP => self.regs.sp,
+            RT::PC => self.regs.pc,
         }
     }
 

@@ -29,20 +29,19 @@ impl Timer {
         self.div = self.div.wrapping_add(1);
 
         let timer_update = match self.tac & 0b11 {
-            0b00 => (prev_divider & (1 << 9) != 0) && (!(self.div & (1 << 9))) != 0,
-            0b01 => (prev_divider & (1 << 3) != 0) && (!(self.div & (1 << 3))) != 0,
-            0b10 => (prev_divider & (1 << 5) != 0) && (!(self.div & (1 << 5))) != 0,
-            0b11 => (prev_divider & (1 << 7) != 0) && (!(self.div & (1 << 7))) != 0,
+            0b00 => (prev_divider & (1 << 9)) != 0 && self.div & (1 << 9) == 0,
+            0b01 => (prev_divider & (1 << 3)) != 0 && self.div & (1 << 3) == 0,
+            0b10 => (prev_divider & (1 << 5)) != 0 && self.div & (1 << 5) == 0,
+            0b11 => (prev_divider & (1 << 7)) != 0 && self.div & (1 << 7) == 0,
             _ => false,
         };
 
-        if timer_update && self.is_timer_enabled() {
-            self.tima += 1;
-
+        if timer_update && (self.tac & (1 << 2)) != 0 {
             if self.tima == 0xFF {
                 self.tima = self.tma;
                 self.set_interrupt(Interrupt::Timer);
             }
+            self.tima += 1;
         }
     }
 
@@ -88,10 +87,6 @@ impl Timer {
             }
             _ => panic!("UNSUPPORTED TIMER READ: {:04X}", address),
         }
-    }
-
-    fn is_timer_enabled(&self) -> bool {
-        (self.tac & (1 << 2)) != 0
     }
 
     fn set_interrupt(&mut self, interrupt: Interrupt) {

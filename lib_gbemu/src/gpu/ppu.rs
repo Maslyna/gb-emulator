@@ -14,8 +14,9 @@ const TICKS_PER_LINE: u32 = 456;
 const FRAME_BUFFER_SIZE: usize = (X_RES * Y_RES) as usize;
 const DEBUG: bool = false;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum FetchState {
+    #[default]
     Tile,
     Data0,
     Data1,
@@ -23,7 +24,7 @@ enum FetchState {
     Push,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct PixelContext {
     fetch_state: FetchState,
     pixel_info: VecDeque<u32>,
@@ -31,7 +32,7 @@ struct PixelContext {
     pushed_x: u8,
     fetch_x: u8,
     background_fetch_data: [u8; 3],
-    fetch_entry_data: [u8; 6],
+    _fetch_entry_data: [u8; 6],
     map_y: u8,
     map_x: u8,
     tile_y: u8,
@@ -195,6 +196,12 @@ impl Ppu {
 
     fn pipeline_fifo_reset(&mut self) {
         self.pfc.pixel_info.clear();
+    }
+}
+
+impl Default for Ppu {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -381,17 +388,11 @@ impl PixelContext {
             pushed_x: 0,
             fetch_x: 0,
             background_fetch_data: [0; 3],
-            fetch_entry_data: [0; 6],
+            _fetch_entry_data: [0; 6],
             map_y: 0,
             map_x: 0,
             tile_y: 0,
             fifo_x: 0,
         }
-    }
-}
-
-impl Default for Ppu {
-    fn default() -> Self {
-        Self::new()
     }
 }

@@ -160,7 +160,7 @@ fn main() {
         let mut debug = GBDebug::new();
         loop {
             let mut bus = bus_lock.lock().unwrap();
-
+            
             if !emu_step(&mut cpu, &mut bus, &mut debug) {
                 return;
             }
@@ -170,7 +170,6 @@ fn main() {
     });
 
     let mut prev_frame: u32 = 0;
-
     'gb_loop: loop {
         for event in event_pump.poll_iter() {
             match event {
