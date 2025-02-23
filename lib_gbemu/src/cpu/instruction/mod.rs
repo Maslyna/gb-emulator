@@ -1563,6 +1563,12 @@ impl Instruction {
                 condition: CT::NC,
                 ..Instruction::default()
             };
+            inst[0xD4] = Instruction {
+                in_type: IT::Call,
+                mode: AM::D16,
+                condition: CT::NC,
+                ..Instruction::default()
+            };
             inst[0xD5] = Instruction {
                 in_type: IT::Push,
                 mode: AM::Reg,

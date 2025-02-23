@@ -36,16 +36,15 @@ const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
 
 struct Emulator(Cpu, Bus);
 
-fn ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
+fn window_display(canvas: &mut Canvas<Window>, bus: &Bus) {
     use sdl2::rect::Rect;
     let buffer = &bus.ppu.video_buffer;
 
     for line in 0..Y_RES {
         for x in 0..X_RES {
-            let index = x + (line * X_RES);
-            let rect =
-                Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
-            let color = buffer[index as usize].to_color();
+            let index = (x + (line * X_RES)) as usize;
+            let rect = Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
+            let color = buffer[index].to_color();
 
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
@@ -160,7 +159,7 @@ fn main() {
         let mut debug = GBDebug::new();
         loop {
             let mut bus = bus_lock.lock().unwrap();
-            
+
             if !emu_step(&mut cpu, &mut bus, &mut debug) {
                 return;
             }
@@ -190,7 +189,7 @@ fn main() {
         let bus = condvar.wait(bus).unwrap();
 
         if prev_frame != bus.ppu.current_frame {
-            ui_update(&mut canvas, &bus);
+            window_display(&mut canvas, &bus);
             debug_ui_update(&mut debug_canvas, &bus);
         }
 

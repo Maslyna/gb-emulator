@@ -1,4 +1,5 @@
 use super::{LcdMode, StatInterruptSource};
+use crate::memory::interrupts::Interrupt;
 
 const PALLETTE_COLORS: [u32; 4] = super::COLORS_DEFAULT;
 
@@ -92,6 +93,10 @@ impl Lcd {
 
     pub fn is_obj_enabled(&self) -> u8 {
         self.lcdc & 0b0000_0010
+    }
+
+    pub fn window_visible(&self) -> bool {
+        self.is_window_enabled() != 0 && self.win_x <= 166 && self.win_y < super::Y_RES as u8
     }
 
     pub fn is_window_enabled(&self) -> u8 {
