@@ -3,9 +3,9 @@ pub mod lcd;
 
 pub type Color = u32;
 
-const COLORS_DEFAULT: [Color; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
-pub const X_RES: u32 = 160;
-pub const Y_RES: u32 = 144;
+const DEFAULT_COLORS: [Color; 4] = [0xFFFFFFFF, 0xFFAAAAAA, 0xFF555555, 0xFF000000];
+pub const X_RES: i32 = 160;
+pub const Y_RES: i32 = 144;
 
 
 pub enum LcdMode {

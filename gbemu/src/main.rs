@@ -24,15 +24,15 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use lib_gbemu::gpu::{X_RES, Y_RES};
 
-const SCALE: u32 = 3;
+const SCALE: i32 = 3;
 
 const DGB_SERIAL: bool = false;
-const DBG_H_TYLES: u32 = 16;
-const DBG_W_TYLES: u32 = 32;
-const DBG_SCREEN_WIDTH: u32 = (DBG_H_TYLES * 8 * SCALE) + (DBG_H_TYLES * SCALE);
-const DBG_SCREEN_HEIGHT: u32 = (DBG_W_TYLES * 8 * SCALE) + (DBG_W_TYLES * SCALE);
-const DBG_H_ENUM: std::ops::Range<u32> = 0..16;
-const DBG_W_ENUM: std::ops::Range<u32> = 0..24;
+const DBG_H_TYLES: i32 = 16;
+const DBG_W_TYLES: i32 = 32;
+const DBG_SCREEN_WIDTH: i32 = (DBG_H_TYLES * 8 * SCALE) + (DBG_H_TYLES * SCALE);
+const DBG_SCREEN_HEIGHT: i32 = (DBG_W_TYLES * 8 * SCALE) + (DBG_W_TYLES * SCALE);
+const DBG_H_ENUM: std::ops::Range<i32> = 0..16;
+const DBG_W_ENUM: std::ops::Range<i32> = 0..24;
 
 struct Emulator(Cpu, Bus);
 
@@ -43,7 +43,7 @@ fn window_display(canvas: &mut Canvas<Window>, bus: &Bus) {
     for line in 0..Y_RES {
         for x in 0..X_RES {
             let index = (x + (line * X_RES)) as usize;
-            let rect = Rect::new((x * SCALE) as i32, (line * SCALE) as i32, SCALE, SCALE);
+            let rect = Rect::new(x * SCALE, line * SCALE, SCALE as u32, SCALE as u32);
             let color = buffer[index].to_color();
 
             canvas.set_draw_color(color);
@@ -87,12 +87,12 @@ fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("gbemu", X_RES * SCALE, Y_RES * SCALE)
+        .window("gbemu", (X_RES * SCALE) as u32, (Y_RES * SCALE) as u32)
         .position_centered()
         .build()
         .unwrap();
     let debug_window = video_subsystem
-        .window("DEBUG", DBG_SCREEN_WIDTH, DBG_SCREEN_HEIGHT)
+        .window("DEBUG", DBG_SCREEN_WIDTH as u32, DBG_SCREEN_HEIGHT as u32)
         .position(
             window.position().0 + window.size().0 as i32,
             window.position().1,

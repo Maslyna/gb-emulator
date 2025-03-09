@@ -68,8 +68,6 @@ impl Bus {
                 self.timer.interrupts = 0;
 
                 self.ppu_tick();
-                self.interrupts.flags |= self.ppu.interrupts;
-                self.ppu.interrupts = 0;
             }
 
             self.dma_tick();

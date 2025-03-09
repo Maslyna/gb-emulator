@@ -1,7 +1,6 @@
 use super::{LcdMode, StatInterruptSource};
-use crate::memory::interrupts::Interrupt;
 
-const PALLETTE_COLORS: [u32; 4] = super::COLORS_DEFAULT;
+const PALLETTE_COLORS: [u32; 4] = super::DEFAULT_COLORS;
 
 #[allow(dead_code)]
 #[derive(Debug)]

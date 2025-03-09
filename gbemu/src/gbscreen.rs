@@ -19,8 +19,8 @@ pub fn display_tile(
     canvas: &mut Canvas<Window>,
     address: u16,
     tile_num: u16,
-    x: u32,
-    y: u32,
+    x: i32,
+    y: i32,
 ) {
     for tile_y in (0..16).step_by(2) {
         let byte1: u8 = bus.read(address + (tile_num * 16) + tile_y);
@@ -41,12 +41,12 @@ pub fn display_tile(
             let color = TILE_COLORS[color_idx as usize];
 
             // draw rectangle
-            let rect_x: i32 = (x + (7 - bit) * SCALE) as i32;
-            let rect_y = (y + tile_y as u32 / 2 * SCALE) as i32;
+            let rect_x: i32 = x + (7 - bit) * SCALE;
+            let rect_y = y + tile_y as i32 / 2 * SCALE;
             let rect_w = SCALE;
             let rect_h = SCALE;
 
-            let rect = sdl2::rect::Rect::new(rect_x, rect_y, rect_w, rect_h);
+            let rect = sdl2::rect::Rect::new(rect_x, rect_y, rect_w as u32, rect_h as u32);
             canvas.set_draw_color(color);
             canvas.fill_rect(rect).unwrap();
         }
