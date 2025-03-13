@@ -5,6 +5,26 @@ macro_rules! bit {
     };
 }
 
+/// Creates 2nd mutable reference from a mutable reference
+#[macro_export]
+macro_rules! make_mut_ref {
+    ($value:expr) => {
+        unsafe {
+            &mut *($value as *const _ as *const u8 as *mut u8 as *mut _)
+        }
+    };
+}
+
+/// Creates 2nd reference from ANY reference (mutable/immutable)
+#[macro_export]
+macro_rules! make_ref {
+    ($value:expr) => {
+        unsafe {
+            &*($value as *const _ as *const u8 as *const u8 as *const _)
+        }
+    };
+}
+
 #[macro_export]
 macro_rules! set_bit {
     ($a:expr, $n:expr, $on:expr) => {

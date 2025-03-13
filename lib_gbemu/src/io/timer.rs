@@ -1,4 +1,4 @@
-use crate::memory::interrupts::Interrupt;
+use crate::memory::{interrupts::Interrupt, Bus};
 
 #[derive(Debug)]
 pub struct Timer {
@@ -8,8 +8,6 @@ pub struct Timer {
     pub tac: u8,
 
     pub ticks: u32,
-
-    pub interrupts: u8,
 }
 
 impl Timer {
@@ -20,11 +18,10 @@ impl Timer {
             tma: 0,
             tac: 0,
             ticks: 0,
-            interrupts: 0,
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, bus: &mut Bus) {
         let prev_divider = self.div;
         self.div = self.div.wrapping_add(1);
 
@@ -39,7 +36,7 @@ impl Timer {
         if timer_update && (self.tac & (1 << 2)) != 0 {
             if self.tima == 0xFF {
                 self.tima = self.tma;
-                self.set_interrupt(Interrupt::Timer);
+                bus.interrupts.enable_flag(Interrupt::Timer);
             }
             self.tima += 1;
         }
@@ -87,10 +84,6 @@ impl Timer {
             }
             _ => panic!("UNSUPPORTED TIMER READ: {:04X}", address),
         }
-    }
-
-    fn set_interrupt(&mut self, interrupt: Interrupt) {
-        self.interrupts |= interrupt as u8;
     }
 }
 

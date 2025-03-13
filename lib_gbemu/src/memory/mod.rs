@@ -23,8 +23,7 @@ use self::ram::Ram;
 use crate::cartridge::rom::Rom;
 use crate::emu::Emu;
 use crate::gpu::ppu::Ppu;
-use crate::io::gamepad::Gamepad;
-use crate::io::timer::Timer;
+use crate::io::{gamepad::Gamepad, timer::Timer};
 
 #[derive(Debug)]
 pub struct Bus {
@@ -60,17 +59,15 @@ impl Bus {
     }
 
     pub fn cycle(&mut self, cycles: i32) {
+        let bus: &mut Bus = make_mut_ref!(self); // FUCK YOU, BORROW CHECKER!!!
         for _ in 0..cycles {
             for _ in 0..4 {
                 self.timer.ticks = self.timer.ticks.wrapping_add(1);
-                self.timer.tick();
-                self.interrupts.flags |= self.timer.interrupts;
-                self.timer.interrupts = 0;
-
-                self.ppu_tick();
+                self.timer.tick(bus);
+                self.ppu.tick(bus);
             }
 
-            self.dma_tick();
+            self.dma.tick(bus);
         }
     }
 

@@ -225,6 +225,323 @@ impl Ppu {
     fn pixel_fifo_pop(&mut self) -> Color {
         self.pfc.fifo.pop_front().expect("PIXEL FIFO IS EMPTY!")
     }
+
+    pub fn tick(&mut self, bus: &mut Bus) {
+        if DEBUG {
+            let debug_ppu_output = format!(
+                "PPU: FRAME {} FCOUNT {} LINET {} ",
+                self.current_frame, self.frame_count, self.line_ticks
+            );
+            let debug_lcd_output: String = format!(
+                "LCD: LCDC {} LCDS {} LY {} DMA {}",
+                self.lcd.lcdc, self.lcd.lcds, self.lcd.ly, self.lcd.dma
+            );
+            let debug_pixelcontext_output: String = format!(
+                "PFC: STATE {:?} PI_LEN {}",
+                self.pfc.current_fetch_state,
+                self.pfc.fifo.len()
+            );
+
+            let debug_output =
+                format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
+            print!("{debug_output}");
+            crate::common::debug_write(&debug_output);
+        }
+        self.line_ticks += 1;
+
+        match self.lcd.get_lcds_mode() {
+            LcdMode::Oam => self.mode_oam(),
+            LcdMode::Xfer => self.mode_xfer(bus),
+            LcdMode::VBlank => self.mode_vblank(bus),
+            LcdMode::HBlank => self.mode_hblank(bus),
+        }
+    }
+
+    fn mode_oam(&mut self) {
+        if self.line_ticks >= 80 {
+            self.lcd.set_lcds_mode(LcdMode::Xfer);
+
+            self.pfc.current_fetch_state = FetchState::Tile;
+            self.pfc.line_x = 0;
+            self.pfc.fetch_x = 0;
+            self.pfc.pushed_x = 0;
+            self.pfc.fifo_x = 0;
+        }
+
+        if self.line_ticks == 1 {
+            self.line_sprites.clear();
+
+            self.load_line_sprites();
+        }
+    }
+
+    fn mode_xfer(&mut self, bus: &mut Bus) {
+        self.pipeline_process(bus);
+        if self.pfc.pushed_x >= X_RES as u8 {
+            self.pipeline_fifo_reset();
+
+            self.lcd.set_lcds_mode(LcdMode::HBlank);
+
+            if self.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {
+                bus.interrupts.enable_flag(Interrupt::LcdStat);
+            }
+        }
+    }
+
+    fn mode_vblank(&mut self, bus: &mut Bus) {
+        if self.line_ticks >= TICKS_PER_LINE {
+            if let Some(interrupt) = self.increment_ly() {
+                bus.interrupts.enable_flag(interrupt);
+            }
+
+            if self.lcd.ly >= (LINES_PER_FRAME as u8) {
+                self.lcd.set_lcds_mode(LcdMode::Oam);
+                self.lcd.ly = 0;
+                self.window_line = 0;
+            }
+
+            self.line_ticks = 0;
+        }
+    }
+
+    fn mode_hblank(&mut self, bus: &mut Bus) {
+        if self.line_ticks >= TICKS_PER_LINE {
+            if let Some(interrupt) = self.increment_ly() {
+                bus.interrupts.enable_flag(interrupt);
+            }
+
+            if self.lcd.ly >= Y_RES as u8 {
+                self.lcd.set_lcds_mode(LcdMode::VBlank);
+
+                bus.interrupts.enable_flag(Interrupt::VBlank);
+
+                if self.lcd.get_stat_interrupt(StatInterruptSource::VBlank) != 0 {
+                    bus.interrupts.enable_flag(Interrupt::LcdStat);
+                }
+
+                self.current_frame += 1;
+
+                // calc FPS
+                let end = Emu::get_ticks();
+                let frame_time = end - self.prev_frame_time;
+
+                if frame_time < self.target_frame_time {
+                    Emu::delay(self.target_frame_time - frame_time);
+                }
+
+                if end - self.start_time >= 1000 {
+                    // let fps = self.frame_count;
+                    self.start_time = end;
+                    self.frame_count = 0;
+
+                    // println!("FPS: {}", fps);
+                }
+
+                self.frame_count += 1;
+                self.prev_frame_time = Emu::get_ticks();
+            } else {
+                self.lcd.set_lcds_mode(LcdMode::Oam);
+            }
+
+            self.line_ticks = 0;
+        }
+    }
+
+    fn pipeline_push_pixel(&mut self) {
+        if self.pfc.fifo.len() > 8 {
+            let pixel_data = self.pixel_fifo_pop();
+
+            if self.pfc.line_x >= self.lcd.scroll_x % 8 {
+                let index = self.pfc.pushed_x as usize
+                    + self.lcd.ly as usize * X_RES as usize;
+                self.video_buffer[index] = pixel_data;
+
+                self.pfc.pushed_x += 1;
+            }
+
+            self.pfc.line_x += 1;
+        }
+    }
+
+    fn pipeline_load_sprite_tile(&mut self) {
+        for elem in self.line_sprites.iter() {
+            let sprite_x = (elem.x - 8) + (self.lcd.scroll_x % 8);
+
+            if (sprite_x >= self.pfc.fetch_x) && (sprite_x < (self.pfc.fetch_x + 8))
+                || ((sprite_x + 8) >= self.pfc.fetch_x)
+                    && ((sprite_x + 8) < (self.pfc.fetch_x + 8))
+            {
+                let index = self.fetched_entry_count as usize;
+                self.fetched_entry_count += 1;
+                self.fetched_entries[index] = *elem;
+            }
+
+            if self.fetched_entry_count >= 3 {
+                break;
+            }
+        }
+    }
+
+    fn pipeline_load_sprite_data(&mut self, bus: &mut Bus, offset: u8) {
+        let current_y = self.lcd.ly;
+        let sprite_heigth = self.lcd.obj_height();
+
+        for i in 0..self.fetched_entry_count as usize {
+            let mut tile_y = ((current_y + 16) - self.fetched_entries[i].y) * 2;
+
+            if self.fetched_entries[i].f_y_flip() {
+                // flipped Y
+                tile_y = (sprite_heigth * 2) - 2 - tile_y;
+            }
+
+            let mut tile_index = self.fetched_entries[i].tile;
+
+            if sprite_heigth == 16 {
+                tile_index &= !1;
+            }
+            let address = 0x8000 + (tile_index as u16 * 16) + tile_y as u16 + offset as u16;
+            self.pfc.fetch_entry_data[(i * 2) + offset as usize] = bus.read(address);
+        }
+    }
+
+    fn pipeline_fetch(&mut self, bus: &mut Bus) {
+        match self.pfc.current_fetch_state {
+            FetchState::Tile => {
+                self.fetched_entry_count = 0;
+
+                if self.lcd.is_bgw_enabled() != 0 {
+                    let address = self.lcd.bg_map_area()
+                        + (self.pfc.map_x / 8) as u16
+                        + ((self.pfc.map_y / 8) as u16 * 32);
+                    self.pfc.bgw_fetch_data[0] = bus.read(address);
+
+                    if self.lcd.bgw_data_area() == 0x8800 {
+                        self.pfc.bgw_fetch_data[0] =
+                            self.pfc.bgw_fetch_data[0].wrapping_add(128);
+                    }
+
+                    self.pipeline_load_window_tile(bus);
+                }
+
+                if self.lcd.is_obj_enabled() != 0 && !self.line_sprites.is_empty() {
+                    self.pipeline_load_sprite_tile();
+                }
+
+                self.pfc.current_fetch_state = FetchState::Data0;
+                self.pfc.fetch_x = self.pfc.fetch_x.wrapping_add(8);
+            }
+            FetchState::Data0 => {
+                let address = self.lcd.bgw_data_area()
+                    + (self.pfc.bgw_fetch_data[0] as u16 * 16)
+                    + (self.pfc.tile_y) as u16;
+                self.pfc.bgw_fetch_data[1] = bus.read(address);
+
+                self.pipeline_load_sprite_data(bus, 0);
+
+                self.pfc.current_fetch_state = FetchState::Data1;
+            }
+            FetchState::Data1 => {
+                let address = self.lcd.bgw_data_area()
+                    + (self.pfc.bgw_fetch_data[0] as u16 * 16)
+                    + (self.pfc.tile_y + 1) as u16;
+                self.pfc.bgw_fetch_data[2] = bus.read(address);
+
+                self.pipeline_load_sprite_data(bus, 1);
+
+                self.pfc.current_fetch_state = FetchState::Idle;
+            }
+            FetchState::Idle => {
+                self.pfc.current_fetch_state = FetchState::Push;
+            }
+            FetchState::Push => {
+                if self.pipeline_fifo_add() {
+                    self.pfc.current_fetch_state = FetchState::Tile;
+                }
+            }
+        }
+    }
+
+    fn pipeline_fifo_add(&mut self) -> bool {
+        if self.pfc.fifo.len() > 8 {
+            // FiFo is Full
+            return false;
+        }
+
+        let x = (self
+            .pfc
+            .fetch_x
+            .wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
+
+        for bit in (0..8).rev() {
+            let lo: u8 = ((self.pfc.bgw_fetch_data[1] & (1 << bit)) != 0) as u8;
+            let hi: u8 = (((self.pfc.bgw_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
+
+            let mut color: Color = self.lcd.bg_colors[(hi | lo) as usize];
+
+            if self.lcd.is_bgw_enabled() == 0 {
+                color = self.lcd.bg_colors[0];
+            }
+
+            if self.lcd.is_obj_enabled() != 0 {
+                color = if let Some(new_color) = self.fetch_sprite_pixels(hi | lo) {
+                    new_color
+                } else {
+                    color
+                }
+            }
+
+            if x >= 0 {
+                self.pixel_fifo_push(color);
+                self.pfc.fifo_x += 1;
+            }
+        }
+
+        true
+    }
+
+    fn pipeline_process(&mut self, bus: &mut Bus) {
+        self.pfc.map_y = self.lcd.ly.wrapping_add(self.lcd.scroll_y);
+        self.pfc.map_x = self.pfc.fetch_x.wrapping_add(self.lcd.scroll_x);
+        self.pfc.tile_y = ((self.lcd.ly.wrapping_add(self.lcd.scroll_y)) % 8) * 2;
+
+        if self.line_ticks & 1 == 0 {
+            self.pipeline_fetch(bus);
+        }
+
+        self.pipeline_push_pixel();
+    }
+
+    fn pipeline_fifo_reset(&mut self) {
+        self.pfc.fifo.clear();
+    }
+
+    fn pipeline_load_window_tile(&mut self, bus: &mut Bus) {
+        if !self.lcd.window_visible() {
+            return;
+        }
+
+        let window_y = self.lcd.win_y;
+        let window_x = self.lcd.win_x;
+        let comp = self.pfc.fetch_x + 7;
+
+        if comp >= window_x
+            && (comp as i32) < (window_x as i32 + Y_RES + 14)
+            && self.lcd.ly >= window_x
+            && (self.lcd.ly as i32) < window_y as i32 + X_RES
+        {
+            let w_tile_y = self.window_line / 8;
+
+            self.pfc.bgw_fetch_data[0] = bus.read(
+                ((self.lcd.win_map_area() as i32
+                    + (self.pfc.fetch_x as i32 + 7 - window_x as i32) / 8)
+                    + (w_tile_y as i32 * 32)) as u16,
+            );
+
+            if self.lcd.bgw_data_area() == 0x8800 {
+                self.pfc.bgw_fetch_data[0] += 128;
+            }
+        }
+    }
 }
 
 impl Default for Ppu {
@@ -352,327 +669,5 @@ impl Oam {
 impl Default for Oam {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Bus {
-    pub fn ppu_tick(&mut self) {
-        if DEBUG {
-            let debug_ppu_output = format!(
-                "PPU: FRAME {} FCOUNT {} LINET {} ",
-                self.ppu.current_frame, self.ppu.frame_count, self.ppu.line_ticks
-            );
-            let debug_lcd_output: String = format!(
-                "LCD: LCDC {} LCDS {} LY {} DMA {}",
-                self.ppu.lcd.lcdc, self.ppu.lcd.lcds, self.ppu.lcd.ly, self.ppu.lcd.dma
-            );
-            let debug_pixelcontext_output: String = format!(
-                "PFC: STATE {:?} PI_LEN {}",
-                self.ppu.pfc.current_fetch_state,
-                self.ppu.pfc.fifo.len()
-            );
-
-            let debug_output =
-                format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
-            print!("{debug_output}");
-            crate::common::debug_write(&debug_output);
-        }
-        self.ppu.line_ticks += 1;
-
-        match self.ppu.lcd.get_lcds_mode() {
-            LcdMode::Oam => self.mode_oam(),
-            LcdMode::Xfer => self.mode_xfer(),
-            LcdMode::VBlank => self.mode_vblank(),
-            LcdMode::HBlank => self.mode_hblank(),
-        }
-    }
-
-    fn mode_oam(&mut self) {
-        if self.ppu.line_ticks >= 80 {
-            self.ppu.lcd.set_lcds_mode(LcdMode::Xfer);
-
-            self.ppu.pfc.current_fetch_state = FetchState::Tile;
-            self.ppu.pfc.line_x = 0;
-            self.ppu.pfc.fetch_x = 0;
-            self.ppu.pfc.pushed_x = 0;
-            self.ppu.pfc.fifo_x = 0;
-        }
-
-        if self.ppu.line_ticks == 1 {
-            self.ppu.line_sprites.clear();
-
-            self.ppu.load_line_sprites();
-        }
-    }
-
-    fn mode_xfer(&mut self) {
-        self.pipeline_process();
-        if self.ppu.pfc.pushed_x >= X_RES as u8 {
-            self.pipeline_fifo_reset();
-
-            self.ppu.lcd.set_lcds_mode(LcdMode::HBlank);
-
-            if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::HBlank) != 0 {
-                self.interrupts.enable_flag(Interrupt::LcdStat);
-            }
-        }
-    }
-
-    fn mode_vblank(&mut self) {
-        if self.ppu.line_ticks >= TICKS_PER_LINE {
-            if let Some(interrupt) = self.ppu.increment_ly() {
-                self.interrupts.enable_flag(interrupt);
-            }
-
-            if self.ppu.lcd.ly >= (LINES_PER_FRAME as u8) {
-                self.ppu.lcd.set_lcds_mode(LcdMode::Oam);
-                self.ppu.lcd.ly = 0;
-                self.ppu.window_line = 0;
-            }
-
-            self.ppu.line_ticks = 0;
-        }
-    }
-
-    fn mode_hblank(&mut self) {
-        if self.ppu.line_ticks >= TICKS_PER_LINE {
-            if let Some(interrupt) = self.ppu.increment_ly() {
-                self.interrupts.enable_flag(interrupt);
-            }
-
-            if self.ppu.lcd.ly >= Y_RES as u8 {
-                self.ppu.lcd.set_lcds_mode(LcdMode::VBlank);
-
-                self.interrupts.enable_flag(Interrupt::VBlank);
-
-                if self.ppu.lcd.get_stat_interrupt(StatInterruptSource::VBlank) != 0 {
-                    self.interrupts.enable_flag(Interrupt::LcdStat);
-                }
-
-                self.ppu.current_frame += 1;
-
-                // calc FPS
-                let end = Emu::get_ticks();
-                let frame_time = end - self.ppu.prev_frame_time;
-
-                if frame_time < self.ppu.target_frame_time {
-                    Emu::delay(self.ppu.target_frame_time - frame_time);
-                }
-
-                if end - self.ppu.start_time >= 1000 {
-                    // let fps = self.ppu.frame_count;
-                    self.ppu.start_time = end;
-                    self.ppu.frame_count = 0;
-
-                    // println!("FPS: {}", fps);
-                }
-
-                self.ppu.frame_count += 1;
-                self.ppu.prev_frame_time = Emu::get_ticks();
-            } else {
-                self.ppu.lcd.set_lcds_mode(LcdMode::Oam);
-            }
-
-            self.ppu.line_ticks = 0;
-        }
-    }
-
-    fn pipeline_push_pixel(&mut self) {
-        if self.ppu.pfc.fifo.len() > 8 {
-            let pixel_data = self.ppu.pixel_fifo_pop();
-
-            if self.ppu.pfc.line_x >= self.ppu.lcd.scroll_x % 8 {
-                let index = self.ppu.pfc.pushed_x as usize
-                    + self.ppu.lcd.ly as usize * X_RES as usize;
-                self.ppu.video_buffer[index] = pixel_data;
-
-                self.ppu.pfc.pushed_x += 1;
-            }
-
-            self.ppu.pfc.line_x += 1;
-        }
-    }
-
-    fn pipeline_load_sprite_tile(&mut self) {
-        for elem in self.ppu.line_sprites.iter() {
-            let sprite_x = (elem.x - 8) + (self.ppu.lcd.scroll_x % 8);
-
-            if (sprite_x >= self.ppu.pfc.fetch_x) && (sprite_x < (self.ppu.pfc.fetch_x + 8))
-                || ((sprite_x + 8) >= self.ppu.pfc.fetch_x)
-                    && ((sprite_x + 8) < (self.ppu.pfc.fetch_x + 8))
-            {
-                let index = self.ppu.fetched_entry_count as usize;
-                self.ppu.fetched_entry_count += 1;
-                self.ppu.fetched_entries[index] = *elem;
-            }
-
-            if self.ppu.fetched_entry_count >= 3 {
-                break;
-            }
-        }
-    }
-
-    fn pipeline_load_sprite_data(&mut self, offset: u8) {
-        let current_y = self.ppu.lcd.ly;
-        let sprite_heigth = self.ppu.lcd.obj_height();
-
-        for i in 0..self.ppu.fetched_entry_count as usize {
-            let mut tile_y = ((current_y + 16) - self.ppu.fetched_entries[i].y) * 2;
-
-            if self.ppu.fetched_entries[i].f_y_flip() {
-                // flipped Y
-                tile_y = (sprite_heigth * 2) - 2 - tile_y;
-            }
-
-            let mut tile_index = self.ppu.fetched_entries[i].tile;
-
-            if sprite_heigth == 16 {
-                tile_index &= !1;
-            }
-            let address = 0x8000 + (tile_index as u16 * 16) + tile_y as u16 + offset as u16;
-            self.ppu.pfc.fetch_entry_data[(i * 2) + offset as usize] = self.read(address);
-        }
-    }
-
-    fn pipeline_fetch(&mut self) {
-        match self.ppu.pfc.current_fetch_state {
-            FetchState::Tile => {
-                self.ppu.fetched_entry_count = 0;
-
-                if self.ppu.lcd.is_bgw_enabled() != 0 {
-                    let address = self.ppu.lcd.bg_map_area()
-                        + (self.ppu.pfc.map_x / 8) as u16
-                        + ((self.ppu.pfc.map_y / 8) as u16 * 32);
-                    self.ppu.pfc.bgw_fetch_data[0] = self.read(address);
-
-                    if self.ppu.lcd.bgw_data_area() == 0x8800 {
-                        self.ppu.pfc.bgw_fetch_data[0] =
-                            self.ppu.pfc.bgw_fetch_data[0].wrapping_add(128);
-                    }
-
-                    self.pipeline_load_window_tile();
-                }
-
-                if self.ppu.lcd.is_obj_enabled() != 0 && !self.ppu.line_sprites.is_empty() {
-                    self.pipeline_load_sprite_tile();
-                }
-
-                self.ppu.pfc.current_fetch_state = FetchState::Data0;
-                self.ppu.pfc.fetch_x = self.ppu.pfc.fetch_x.wrapping_add(8);
-            }
-            FetchState::Data0 => {
-                let address = self.ppu.lcd.bgw_data_area()
-                    + (self.ppu.pfc.bgw_fetch_data[0] as u16 * 16)
-                    + (self.ppu.pfc.tile_y) as u16;
-                self.ppu.pfc.bgw_fetch_data[1] = self.read(address);
-
-                self.pipeline_load_sprite_data(0);
-
-                self.ppu.pfc.current_fetch_state = FetchState::Data1;
-            }
-            FetchState::Data1 => {
-                let address = self.ppu.lcd.bgw_data_area()
-                    + (self.ppu.pfc.bgw_fetch_data[0] as u16 * 16)
-                    + (self.ppu.pfc.tile_y + 1) as u16;
-                self.ppu.pfc.bgw_fetch_data[2] = self.read(address);
-
-                self.pipeline_load_sprite_data(1);
-
-                self.ppu.pfc.current_fetch_state = FetchState::Idle;
-            }
-            FetchState::Idle => {
-                self.ppu.pfc.current_fetch_state = FetchState::Push;
-            }
-            FetchState::Push => {
-                if self.pipeline_fifo_add() {
-                    self.ppu.pfc.current_fetch_state = FetchState::Tile;
-                }
-            }
-        }
-    }
-
-    fn pipeline_fifo_add(&mut self) -> bool {
-        if self.ppu.pfc.fifo.len() > 8 {
-            // FiFo is Full
-            return false;
-        }
-
-        let x = (self
-            .ppu
-            .pfc
-            .fetch_x
-            .wrapping_sub(8 - (self.ppu.lcd.scroll_x % 8))) as i32;
-
-        for bit in (0..8).rev() {
-            let lo: u8 = ((self.ppu.pfc.bgw_fetch_data[1] & (1 << bit)) != 0) as u8;
-            let hi: u8 = (((self.ppu.pfc.bgw_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
-
-            let mut color: Color = self.ppu.lcd.bg_colors[(hi | lo) as usize];
-
-            if self.ppu.lcd.is_bgw_enabled() == 0 {
-                color = self.ppu.lcd.bg_colors[0];
-            }
-
-            if self.ppu.lcd.is_obj_enabled() != 0 {
-                color = if let Some(new_color) = self.ppu.fetch_sprite_pixels(hi | lo) {
-                    new_color
-                } else {
-                    color
-                }
-            }
-
-            if x >= 0 {
-                self.ppu.pixel_fifo_push(color);
-                self.ppu.pfc.fifo_x += 1;
-            }
-        }
-
-        true
-    }
-
-    fn pipeline_process(&mut self) {
-        let ppu = &mut self.ppu;
-
-        ppu.pfc.map_y = ppu.lcd.ly.wrapping_add(ppu.lcd.scroll_y);
-        ppu.pfc.map_x = ppu.pfc.fetch_x.wrapping_add(ppu.lcd.scroll_x);
-        ppu.pfc.tile_y = ((ppu.lcd.ly.wrapping_add(ppu.lcd.scroll_y)) % 8) * 2;
-
-        if ppu.line_ticks & 1 == 0 {
-            self.pipeline_fetch();
-        }
-
-        self.pipeline_push_pixel();
-    }
-
-    fn pipeline_fifo_reset(&mut self) {
-        self.ppu.pfc.fifo.clear();
-    }
-
-    fn pipeline_load_window_tile(&mut self) {
-        if !self.ppu.lcd.window_visible() {
-            return;
-        }
-
-        let window_y = self.ppu.lcd.win_y;
-        let window_x = self.ppu.lcd.win_x;
-        let comp = self.ppu.pfc.fetch_x + 7;
-
-        if comp >= window_x
-            && (comp as i32) < (window_x as i32 + Y_RES + 14)
-            && self.ppu.lcd.ly >= window_x
-            && (self.ppu.lcd.ly as i32) < window_y as i32 + X_RES
-        {
-            let w_tile_y = self.ppu.window_line / 8;
-
-            self.ppu.pfc.bgw_fetch_data[0] = self.read(
-                ((self.ppu.lcd.win_map_area() as i32
-                    + (self.ppu.pfc.fetch_x as i32 + 7 - window_x as i32) / 8)
-                    + (w_tile_y as i32 * 32)) as u16,
-            );
-
-            if self.ppu.lcd.bgw_data_area() == 0x8800 {
-                self.ppu.pfc.bgw_fetch_data[0] += 128;
-            }
-        }
     }
 }

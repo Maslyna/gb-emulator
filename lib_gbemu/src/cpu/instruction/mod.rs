@@ -1789,8 +1789,8 @@ impl From<u8> for Instruction {
     }
 }
 
-impl From<u8> for RegisterType {
-    fn from(value: u8) -> Self {
+impl RegisterType {
+    fn decode(value: u8) -> Self {
         use self::RegisterType as RT;
         match value {
             0 => RT::B,

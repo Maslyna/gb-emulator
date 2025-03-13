@@ -28,27 +28,25 @@ impl Dma {
     pub fn is_transfering(&self) -> bool {
         self.is_active
     }
-}
 
-impl Bus {
-    pub fn dma_tick(&mut self) {
-        if !self.dma.is_active {
+    pub fn tick(&mut self, bus: &mut Bus) {
+        if !self.is_active {
             return;
         }
 
-        if self.dma.start_delay > 0 {
-            self.dma.start_delay -= 1;
+        if self.start_delay > 0 {
+            self.start_delay -= 1;
             return;
         }
 
-        let data = self.read(
-            (self.dma.value as u16)
+        let data = bus.read(
+            (self.value as u16)
                 .wrapping_mul(0x100)
-                .wrapping_add(self.dma.byte as u16),
+                .wrapping_add(self.byte as u16),
         );
-        self.ppu.oam_write(self.dma.byte as u16, data);
+        bus.ppu.oam_write(self.byte as u16, data);
 
-        self.dma.byte = self.dma.byte.wrapping_add(1);
-        self.dma.is_active = self.dma.byte < 0xA0;
+        self.byte = self.byte.wrapping_add(1);
+        self.is_active = self.byte < 0xA0;
     }
 }

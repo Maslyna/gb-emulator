@@ -1,4 +1,3 @@
-#![allow(clippy::needless_return)]
 extern crate lib_gbemu;
 extern crate sdl2;
 
@@ -139,60 +138,76 @@ fn main() {
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
 
-    let Emulator(cpu, bus) = create_emu(path).unwrap();
-    let bus = Arc::new((Mutex::new(bus), Condvar::new()));
+    std::thread::Builder::new()
+        .stack_size(1024 * 1024 * 8)
+        .spawn(move || {
+            let Emulator(cpu, bus) = create_emu(path).unwrap();
+            let bus = Arc::new((Mutex::new(bus), Condvar::new()));
 
-    let (mut canvas, mut debug_canvas, mut event_pump) = ui_init();
-    canvas.set_draw_color(Color::BLACK);
-    canvas.clear();
-    canvas.present();
+            let bus_clone = Arc::clone(&bus);
 
-    debug_canvas.set_draw_color(Color::RGB(17, 17, 17));
-    debug_canvas.clear();
-    debug_canvas.present();
+            let _ = std::thread::Builder::new()
+                .stack_size(1024 * 1024 * 8)
+                .spawn(move || {
+                    let mut cpu = cpu;
+                    let (bus_lock, condvar) = &*bus_clone;
+                    let mut debug = GBDebug::new();
+                    loop {
+                        let mut bus = bus_lock.lock().unwrap();
 
-    let bus_clone = Arc::clone(&bus);
+                        if !emu_step(&mut cpu, &mut bus, &mut debug) {
+                            return;
+                        }
 
-    std::thread::spawn(move || {
-        let mut cpu = cpu;
-        let (bus_lock, condvar) = &*bus_clone;
-        let mut debug = GBDebug::new();
-        loop {
-            let mut bus = bus_lock.lock().unwrap();
+                        condvar.notify_all();
+                    }
+                })
+                .unwrap();
 
-            if !emu_step(&mut cpu, &mut bus, &mut debug) {
-                return;
-            }
+            std::thread::Builder::new()
+                .stack_size(1024 * 1024 * 8)
+                .spawn(move || {
+                    let (mut canvas, mut debug_canvas, mut event_pump) = ui_init();
+                    canvas.set_draw_color(Color::BLACK);
+                    canvas.clear();
+                    canvas.present();
 
-            condvar.notify_all();
-        }
-    });
+                    debug_canvas.set_draw_color(Color::RGB(17, 17, 17));
+                    debug_canvas.clear();
+                    debug_canvas.present();
+                    let mut prev_frame: u32 = 0;
+                    'gb_loop: loop {
+                        for event in event_pump.poll_iter() {
+                            match event {
+                                Event::Quit { .. }
+                                | Event::Window {
+                                    win_event: WindowEvent::Close,
+                                    ..
+                                }
+                                | Event::KeyDown {
+                                    keycode: Some(Keycode::Escape),
+                                    ..
+                                } => break 'gb_loop,
+                                _ => {}
+                            }
+                        }
+                        let (bus_lock, condvar) = &*bus;
+                        let bus = bus_lock.lock().unwrap();
+                        let bus = condvar.wait(bus).unwrap();
 
-    let mut prev_frame: u32 = 0;
-    'gb_loop: loop {
-        for event in event_pump.poll_iter() {
-            match event {
-                Event::Quit { .. }
-                | Event::Window {
-                    win_event: WindowEvent::Close,
-                    ..
-                }
-                | Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                } => break 'gb_loop,
-                _ => {}
-            }
-        }
-        let (bus_lock, condvar) = &*bus;
-        let bus = bus_lock.lock().unwrap();
-        let bus = condvar.wait(bus).unwrap();
+                        if prev_frame != bus.ppu.current_frame {
+                            window_display(&mut canvas, &bus);
+                            debug_ui_update(&mut debug_canvas, &bus);
+                        }
 
-        if prev_frame != bus.ppu.current_frame {
-            window_display(&mut canvas, &bus);
-            debug_ui_update(&mut debug_canvas, &bus);
-        }
-
-        prev_frame = bus.ppu.current_frame;
-    }
+                        prev_frame = bus.ppu.current_frame;
+                    }
+                })
+                .unwrap()
+                .join()
+                .unwrap();
+        })
+        .unwrap()
+        .join()
+        .unwrap();
 }

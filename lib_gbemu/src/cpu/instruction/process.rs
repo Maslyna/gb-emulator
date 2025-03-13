@@ -355,11 +355,11 @@ impl Cpu {
     }
 
     fn cb_in(&mut self, bus: &mut Bus) {
-        let operation = self.fetched_data;
-        let reg = RT::from(operation as u8 & 0b111);
+        let operation = self.fetched_data as u8;
+        let reg = RT::decode(operation & 0b111);
         let mut reg_val = self.read_reg8(reg, bus);
-        let bit = ((operation >> 3) & 0b111) as u8;
-        let bit_op = ((operation >> 6) & 0b11) as u8;
+        let bit = (operation >> 3) & 0b111;
+        let bit_op = (operation >> 6) & 0b11;
         let flag_c = self.regs.flag_c();
 
         bus.cycle(1);
@@ -371,8 +371,8 @@ impl Cpu {
         match bit_op {
             1 => {
                 // BIT
-                let flag_z = !(reg_val & (1 << bit));
-                self.regs.set_flag(Flag::Z, flag_z != 0);
+                let flag_z = reg_val & (1 << bit) == 0;
+                self.regs.set_flag(Flag::Z, flag_z);
                 self.regs.set_flag(Flag::N, false);
                 self.regs.set_flag(Flag::H, true);
                 return;

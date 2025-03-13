@@ -81,7 +81,7 @@ impl Cpu {
                 common::debug_write(&debug_data);
             }
 
-            if bus.timer.ticks == 1610488 {
+            if bus.timer.ticks == 1764640 {
                 print!("BREAK");
             }
 
