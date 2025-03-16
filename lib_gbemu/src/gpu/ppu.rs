@@ -95,6 +95,37 @@ impl Ppu {
         }
     }
 
+    pub fn tick(&mut self, bus: &mut Bus) {
+        if DEBUG {
+            let debug_ppu_output = format!(
+                "PPU: FRAME {} FCOUNT {} LINET {} ",
+                self.current_frame, self.frame_count, self.line_ticks
+            );
+            let debug_lcd_output: String = format!(
+                "LCD: LCDC {} LCDS {} LY {} LYCMP {} DMA {}",
+                self.lcd.lcdc, self.lcd.lcds, self.lcd.ly, self.lcd.ly_compare, self.lcd.dma
+            );
+            let debug_pixelcontext_output: String = format!(
+                "PFC: STATE {:?} PI_LEN {}",
+                self.pfc.current_fetch_state,
+                self.pfc.fifo.len()
+            );
+
+            let debug_output =
+                format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
+            print!("{debug_output}");
+            crate::common::debug_write(&debug_output);
+        }
+        self.line_ticks += 1;
+
+        match self.lcd.get_lcds_mode() {
+            LcdMode::Oam => self.mode_oam(),
+            LcdMode::Xfer => self.mode_xfer(bus),
+            LcdMode::VBlank => self.mode_vblank(bus),
+            LcdMode::HBlank => self.mode_hblank(bus),
+        }
+    }
+
     // TODO: rewrite
     pub fn draw_frame(&mut self, bus: &mut Bus) {
         // calc FPS
@@ -244,37 +275,6 @@ impl Ppu {
 
     fn pixel_fifo_pop(&mut self) -> Color {
         self.pfc.fifo.pop_front().expect("PIXEL FIFO IS EMPTY!")
-    }
-
-    pub fn tick(&mut self, bus: &mut Bus) {
-        if DEBUG {
-            let debug_ppu_output = format!(
-                "PPU: FRAME {} FCOUNT {} LINET {} ",
-                self.current_frame, self.frame_count, self.line_ticks
-            );
-            let debug_lcd_output: String = format!(
-                "LCD: LCDC {} LCDS {} LY {} DMA {}",
-                self.lcd.lcdc, self.lcd.lcds, self.lcd.ly, self.lcd.dma
-            );
-            let debug_pixelcontext_output: String = format!(
-                "PFC: STATE {:?} PI_LEN {}",
-                self.pfc.current_fetch_state,
-                self.pfc.fifo.len()
-            );
-
-            let debug_output =
-                format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
-            print!("{debug_output}");
-            crate::common::debug_write(&debug_output);
-        }
-        self.line_ticks += 1;
-
-        match self.lcd.get_lcds_mode() {
-            LcdMode::Oam => self.mode_oam(),
-            LcdMode::Xfer => self.mode_xfer(bus),
-            LcdMode::VBlank => self.mode_vblank(bus),
-            LcdMode::HBlank => self.mode_hblank(bus),
-        }
     }
 
     fn mode_oam(&mut self) {
@@ -474,7 +474,7 @@ impl Ppu {
 
         for bit in (0u8..8).rev() {
             let lo: u8 = ((self.pfc.bgw_fetch_data[1] & (1 << bit)) != 0) as u8;
-            let hi: u8 = (((self.pfc.bgw_fetch_data[2] & (1 << bit)) << 1) != 0) as u8;
+            let hi: u8 = (((self.pfc.bgw_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
 
             let mut color: Color = self.lcd.bg_colors[(hi | lo) as usize];
 

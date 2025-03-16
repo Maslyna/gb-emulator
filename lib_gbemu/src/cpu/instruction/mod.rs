@@ -500,7 +500,7 @@ impl Instruction {
             };
             inst[0x3A] = Instruction {
                 in_type: IT::Ld,
-                mode: AM::HLDReg,
+                mode: AM::RegHLD,
                 r1: RT::A,
                 r2: RT::HL,
                 ..Instruction::default()

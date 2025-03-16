@@ -11,15 +11,15 @@ use lib_gbemu::{
     debug::GsSerial,
     gpu::{GbWindow, X_RES, Y_RES},
     io::input::Gamepad,
-    memory::Bus
+    memory::Bus,
 };
 
-use gbscreen::{MainWindow, DebugWindow, DebugMode};
+use gbscreen::{DebugMode, DebugWindow, MainWindow};
 
 use sdl2::{
     event::{Event, WindowEvent},
     keyboard::Keycode,
-    pixels::Color
+    pixels::Color,
 };
 
 use std::env;
@@ -31,8 +31,7 @@ const DBG_SCREEN_HEIGHT: i32 = (32 * 8 * SCALE) + (32 * SCALE);
 
 struct Emulator<'a>(Cpu, Bus<'a>);
 
-
-fn on_key(gamepad: &mut Gamepad, keycode: Keycode, down: bool) {
+fn on_key(gamepad: &mut Gamepad, bus: &mut Bus, keycode: Keycode, down: bool) {
     let state = gamepad.get_state_mut();
     match keycode {
         Keycode::Right => state.a = down,
@@ -44,7 +43,8 @@ fn on_key(gamepad: &mut Gamepad, keycode: Keycode, down: bool) {
         Keycode::Z => state.left = down,
         Keycode::X => state.right = down,
         _ => {}
-    }
+    };
+    bus.gamepad.set_state(*state);
 }
 
 fn ui_init() -> (MainWindow, DebugWindow, sdl2::EventPump) {
@@ -116,9 +116,14 @@ fn main() {
             debug_window.clear();
             debug_window.present();
 
-            let mut emulator_window = DebugMode {main_window, debug_window, is_updated: false};
+            let mut emulator_window = DebugMode {
+                main_window,
+                debug_window,
+                is_updated: false,
+            };
 
-            let Emulator(mut cpu, mut bus) = create_emu(path, make_mut_ref!(&mut emulator_window)).unwrap();
+            let Emulator(mut cpu, mut bus) =
+                create_emu(path, make_mut_ref!(&mut emulator_window)).unwrap();
             let mut serial = GsSerial::new();
 
             let mut gamepad = Gamepad::new();
@@ -138,14 +143,15 @@ fn main() {
                         Event::KeyDown {
                             keycode: Some(keycode),
                             ..
-                        } => on_key(&mut gamepad, keycode, true),
+                        } => on_key(&mut gamepad, &mut bus, keycode, true),
                         Event::KeyUp {
                             keycode: Some(keycode),
                             ..
-                        } => on_key(&mut gamepad, keycode, false),
+                        } => on_key(&mut gamepad, &mut bus, keycode, false),
                         _ => {}
                     }
                 }
+                bus.gamepad.set_state(gamepad.state);
                 if !emu_step(&mut cpu, &mut bus, &mut serial) {
                     return;
                 };
