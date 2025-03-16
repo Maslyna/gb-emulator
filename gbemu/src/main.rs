@@ -1,88 +1,53 @@
+#[macro_use]
 extern crate lib_gbemu;
 extern crate sdl2;
 
 mod gbscreen;
 mod utils;
 
-use utils::ToColor;
+use lib_gbemu::{
+    cartridge::rom::Rom,
+    cpu::Cpu,
+    debug::GsSerial,
+    gpu::{GbWindow, X_RES, Y_RES},
+    io::input::Gamepad,
+    memory::Bus
+};
 
-use lib_gbemu::cartridge::rom::Rom;
-use lib_gbemu::cpu::Cpu;
-use lib_gbemu::debug::GBDebug;
-use lib_gbemu::memory::Bus;
+use gbscreen::{MainWindow, DebugWindow, DebugMode};
 
-use sdl2::event::{Event, WindowEvent};
-use sdl2::keyboard::Keycode;
-use sdl2::pixels::Color;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
+use sdl2::{
+    event::{Event, WindowEvent},
+    keyboard::Keycode,
+    pixels::Color
+};
 
 use std::env;
-use std::error::Error;
-use std::sync::{Arc, Condvar, Mutex};
-
-use lib_gbemu::gpu::{X_RES, Y_RES};
 
 const SCALE: i32 = 3;
-
 const DGB_SERIAL: bool = false;
-const DBG_H_TYLES: i32 = 16;
-const DBG_W_TYLES: i32 = 32;
-const DBG_SCREEN_WIDTH: i32 = (DBG_H_TYLES * 8 * SCALE) + (DBG_H_TYLES * SCALE);
-const DBG_SCREEN_HEIGHT: i32 = (DBG_W_TYLES * 8 * SCALE) + (DBG_W_TYLES * SCALE);
-const DBG_H_ENUM: std::ops::Range<i32> = 0..16;
-const DBG_W_ENUM: std::ops::Range<i32> = 0..24;
+const DBG_SCREEN_WIDTH: i32 = (16 * 8 * SCALE) + (16 * SCALE);
+const DBG_SCREEN_HEIGHT: i32 = (32 * 8 * SCALE) + (32 * SCALE);
 
-struct Emulator(Cpu, Bus);
+struct Emulator<'a>(Cpu, Bus<'a>);
 
-fn window_display(canvas: &mut Canvas<Window>, bus: &Bus) {
-    use sdl2::rect::Rect;
-    let buffer = &bus.ppu.video_buffer;
 
-    for line in 0..Y_RES {
-        for x in 0..X_RES {
-            let index = (x + (line * X_RES)) as usize;
-            let rect = Rect::new(x * SCALE, line * SCALE, SCALE as u32, SCALE as u32);
-            let color = buffer[index].to_color();
-
-            canvas.set_draw_color(color);
-            canvas.fill_rect(rect).unwrap();
-        }
+fn on_key(gamepad: &mut Gamepad, keycode: Keycode, down: bool) {
+    let state = gamepad.get_state_mut();
+    match keycode {
+        Keycode::Right => state.a = down,
+        Keycode::Left => state.b = down,
+        Keycode::Down => state.start = down,
+        Keycode::Tab => state.select = down,
+        Keycode::Up => state.up = down,
+        Keycode::Return => state.down = down,
+        Keycode::Z => state.left = down,
+        Keycode::X => state.right = down,
+        _ => {}
     }
-
-    canvas.present();
 }
 
-fn debug_ui_update(canvas: &mut Canvas<Window>, bus: &Bus) {
-    let mut x_draw = 0;
-    let mut y_draw = 0;
-    let mut tile_num = 0;
-
-    let address = 0x8000;
-
-    for tile_y in DBG_W_ENUM {
-        for tile_x in DBG_H_ENUM {
-            gbscreen::display_tile(
-                bus,
-                canvas,
-                address,
-                tile_num,
-                x_draw + (tile_x * SCALE),
-                y_draw + (tile_y * SCALE),
-            );
-
-            x_draw += 8 * SCALE;
-            tile_num += 1;
-        }
-
-        x_draw = 0;
-        y_draw += 8 * SCALE;
-    }
-
-    canvas.present();
-}
-
-fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
+fn ui_init() -> (MainWindow, DebugWindow, sdl2::EventPump) {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
@@ -102,23 +67,23 @@ fn ui_init() -> (Canvas<Window>, Canvas<Window>, sdl2::EventPump) {
     let event_pump = sdl_context.event_pump().unwrap();
 
     (
-        window.into_canvas().build().unwrap(),
-        debug_window.into_canvas().build().unwrap(),
+        MainWindow(window.into_canvas().build().unwrap()),
+        DebugWindow(debug_window.into_canvas().build().unwrap()),
         event_pump,
     )
 }
 
-fn create_emu(path: String) -> Result<Emulator, Box<dyn Error>> {
+fn create_emu(path: String, screen: &mut dyn GbWindow) -> Result<Emulator, &'static str> {
     let (rom, header) = Rom::load(path)?;
     println!("{header}");
 
     let cpu = Cpu::new();
-    let bus = Bus::new(rom);
+    let bus = Bus::new(rom, screen);
 
     Ok(Emulator(cpu, bus))
 }
 
-fn emu_step(cpu: &mut Cpu, bus: &mut Bus, debug: &mut GBDebug) -> bool {
+fn emu_step(cpu: &mut Cpu, bus: &mut Bus, debug: &mut GsSerial) -> bool {
     if bus.emu.paused {
         return true;
     }
@@ -140,72 +105,56 @@ fn main() {
 
     std::thread::Builder::new()
         .stack_size(1024 * 1024 * 8)
+        .name("SDL Thread".to_string())
         .spawn(move || {
-            let Emulator(cpu, bus) = create_emu(path).unwrap();
-            let bus = Arc::new((Mutex::new(bus), Condvar::new()));
+            let (mut main_window, mut debug_window, mut event_pump) = ui_init();
+            main_window.set_draw_color(Color::BLACK);
+            main_window.clear();
+            main_window.present();
 
-            let bus_clone = Arc::clone(&bus);
+            debug_window.set_draw_color(Color::RGB(17, 17, 17));
+            debug_window.clear();
+            debug_window.present();
 
-            let _ = std::thread::Builder::new()
-                .stack_size(1024 * 1024 * 8)
-                .spawn(move || {
-                    let mut cpu = cpu;
-                    let (bus_lock, condvar) = &*bus_clone;
-                    let mut debug = GBDebug::new();
-                    loop {
-                        let mut bus = bus_lock.lock().unwrap();
+            let mut emulator_window = DebugMode {main_window, debug_window, is_updated: false};
 
-                        if !emu_step(&mut cpu, &mut bus, &mut debug) {
-                            return;
+            let Emulator(mut cpu, mut bus) = create_emu(path, make_mut_ref!(&mut emulator_window)).unwrap();
+            let mut serial = GsSerial::new();
+
+            let mut gamepad = Gamepad::new();
+
+            'gb_loop: loop {
+                for event in event_pump.poll_iter() {
+                    match event {
+                        Event::Quit { .. }
+                        | Event::Window {
+                            win_event: WindowEvent::Close,
+                            ..
                         }
-
-                        condvar.notify_all();
+                        | Event::KeyDown {
+                            keycode: Some(Keycode::Escape),
+                            ..
+                        } => break 'gb_loop,
+                        Event::KeyDown {
+                            keycode: Some(keycode),
+                            ..
+                        } => on_key(&mut gamepad, keycode, true),
+                        Event::KeyUp {
+                            keycode: Some(keycode),
+                            ..
+                        } => on_key(&mut gamepad, keycode, false),
+                        _ => {}
                     }
-                })
-                .unwrap();
-
-            std::thread::Builder::new()
-                .stack_size(1024 * 1024 * 8)
-                .spawn(move || {
-                    let (mut canvas, mut debug_canvas, mut event_pump) = ui_init();
-                    canvas.set_draw_color(Color::BLACK);
-                    canvas.clear();
-                    canvas.present();
-
-                    debug_canvas.set_draw_color(Color::RGB(17, 17, 17));
-                    debug_canvas.clear();
-                    debug_canvas.present();
-                    let mut prev_frame: u32 = 0;
-                    'gb_loop: loop {
-                        for event in event_pump.poll_iter() {
-                            match event {
-                                Event::Quit { .. }
-                                | Event::Window {
-                                    win_event: WindowEvent::Close,
-                                    ..
-                                }
-                                | Event::KeyDown {
-                                    keycode: Some(Keycode::Escape),
-                                    ..
-                                } => break 'gb_loop,
-                                _ => {}
-                            }
-                        }
-                        let (bus_lock, condvar) = &*bus;
-                        let bus = bus_lock.lock().unwrap();
-                        let bus = condvar.wait(bus).unwrap();
-
-                        if prev_frame != bus.ppu.current_frame {
-                            window_display(&mut canvas, &bus);
-                            debug_ui_update(&mut debug_canvas, &bus);
-                        }
-
-                        prev_frame = bus.ppu.current_frame;
-                    }
-                })
-                .unwrap()
-                .join()
-                .unwrap();
+                }
+                if !emu_step(&mut cpu, &mut bus, &mut serial) {
+                    return;
+                };
+                if emulator_window.is_updated {
+                    emulator_window.debug_window.update(&bus);
+                    emulator_window.debug_window.present();
+                    emulator_window.is_updated = false;
+                }
+            }
         })
         .unwrap()
         .join()

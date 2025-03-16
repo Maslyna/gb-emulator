@@ -21,3 +21,8 @@ pub enum StatInterruptSource {
     Oam = (1 << 5),
     Lyc = (1 << 6),
 }
+
+pub trait GbWindow {
+    fn update(&mut self, buffer: &[Color]);
+    fn present(&mut self);
+}

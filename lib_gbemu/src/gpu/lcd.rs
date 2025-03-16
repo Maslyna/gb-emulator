@@ -94,7 +94,7 @@ impl Lcd {
         self.lcdc & 0b0000_0010
     }
 
-    pub fn window_visible(&self) -> bool {
+    pub fn is_window_visible(&self) -> bool {
         self.is_window_enabled() != 0 && self.win_x <= 166 && self.win_y < super::Y_RES as u8
     }
 

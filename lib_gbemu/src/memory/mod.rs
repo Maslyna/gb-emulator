@@ -17,16 +17,16 @@ mod dma;
 pub mod interrupts;
 pub mod ram;
 
-use self::dma::Dma;
-use self::interrupts::*;
-use self::ram::Ram;
-use crate::cartridge::rom::Rom;
-use crate::emu::Emu;
-use crate::gpu::ppu::Ppu;
-use crate::io::{gamepad::Gamepad, timer::Timer};
+use self::{dma::Dma, interrupts::*, ram::Ram};
 
-#[derive(Debug)]
-pub struct Bus {
+use crate::{
+    cartridge::rom::Rom,
+    emu::Emu,
+    gpu::{ppu::Ppu, GbWindow},
+    io::{input::Gamepad, timer::Timer},
+};
+
+pub struct Bus<'a> {
     pub interrupts: InterruptState,
 
     rom: Rom,
@@ -37,12 +37,13 @@ pub struct Bus {
     pub timer: Timer,
 
     pub gamepad: Gamepad,
+    pub screen: &'a mut dyn GbWindow,
 
     serial_data: [u8; 2],
 }
 
-impl Bus {
-    pub fn new(rom: Rom) -> Self {
+impl<'a> Bus<'a> {
+    pub fn new(rom: Rom, screen: &'a mut dyn GbWindow) -> Self {
         Self {
             ppu: Ppu::new(),
             rom,
@@ -53,13 +54,14 @@ impl Bus {
             timer: Timer::new(),
 
             gamepad: Gamepad::new(),
+            screen,
 
             serial_data: [0; 2],
         }
     }
 
     pub fn cycle(&mut self, cycles: i32) {
-        let bus: &mut Bus = make_mut_ref!(self); // FUCK YOU, BORROW CHECKER!!!
+        let bus: &mut Bus = make_mut_ref!(self);
         for _ in 0..cycles {
             for _ in 0..4 {
                 self.timer.ticks = self.timer.ticks.wrapping_add(1);

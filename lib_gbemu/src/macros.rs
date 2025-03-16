@@ -10,7 +10,7 @@ macro_rules! bit {
 macro_rules! make_mut_ref {
     ($value:expr) => {
         unsafe {
-            &mut *($value as *const _ as *const u8 as *mut u8 as *mut _)
+            &mut *($value as *mut _)
         }
     };
 }
@@ -20,7 +20,7 @@ macro_rules! make_mut_ref {
 macro_rules! make_ref {
     ($value:expr) => {
         unsafe {
-            &*($value as *const _ as *const u8 as *const u8 as *const _)
+            &*($value as *const _)
         }
     };
 }

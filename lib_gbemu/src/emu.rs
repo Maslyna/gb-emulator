@@ -21,7 +21,7 @@ impl Emu {
     pub fn get_ticks() -> u64 {
         let now = std::time::SystemTime::now();
         now.duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("Failed to get current time in millis")
             .as_millis() as u64
     }
 }

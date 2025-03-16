@@ -1,10 +1,10 @@
 use crate::memory::Bus;
 
-pub struct GBDebug {
+pub struct GsSerial {
     dbg_msg: Vec<char>,
 }
 
-impl GBDebug {
+impl GsSerial {
     pub fn new() -> Self {
         Self {
             dbg_msg: Vec::new(),
@@ -27,7 +27,7 @@ impl GBDebug {
     }
 }
 
-impl Default for GBDebug {
+impl Default for GsSerial {
     fn default() -> Self {
         Self::new()
     }

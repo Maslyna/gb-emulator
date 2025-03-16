@@ -18,8 +18,8 @@ pub enum Selector {
 
 #[derive(Debug)]
 pub struct Gamepad {
+    pub state: GamepadState,
     selector: Selector,
-    state: GamepadState,
 }
 
 

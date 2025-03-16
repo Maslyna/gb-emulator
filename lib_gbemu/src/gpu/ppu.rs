@@ -43,7 +43,6 @@ pub struct Oam {
     flags: u8,
 }
 
-
 #[derive(Debug)]
 pub struct Ppu {
     pub oam_ram: [Oam; 40],
@@ -96,8 +95,29 @@ impl Ppu {
         }
     }
 
+    // TODO: rewrite
+    pub fn draw_frame(&mut self, bus: &mut Bus) {
+        // calc FPS
+        let end = Emu::get_ticks();
+        let frame_time = end - self.prev_frame_time;
+
+        if frame_time < self.target_frame_time {
+            Emu::delay(self.target_frame_time - frame_time);
+        }
+
+        if end - self.start_time >= 1000 {
+            // let fps = self.frame_count;
+            self.start_time = end;
+            self.frame_count = 0;
+            // println!("FPS: {}", fps);
+        }
+
+        bus.screen.update(&self.video_buffer);
+        bus.screen.present();
+    }
+
     pub fn increment_ly(&mut self) -> Option<Interrupt> {
-        if self.lcd.window_visible()
+        if self.lcd.is_window_visible()
             && self.lcd.ly >= self.lcd.win_y
             && (self.lcd.ly as i32) < self.lcd.win_y as i32 + Y_RES
         {
@@ -321,21 +341,7 @@ impl Ppu {
 
                 self.current_frame += 1;
 
-                // calc FPS
-                let end = Emu::get_ticks();
-                let frame_time = end - self.prev_frame_time;
-
-                if frame_time < self.target_frame_time {
-                    Emu::delay(self.target_frame_time - frame_time);
-                }
-
-                if end - self.start_time >= 1000 {
-                    // let fps = self.frame_count;
-                    self.start_time = end;
-                    self.frame_count = 0;
-
-                    // println!("FPS: {}", fps);
-                }
+                self.draw_frame(bus);
 
                 self.frame_count += 1;
                 self.prev_frame_time = Emu::get_ticks();
@@ -352,8 +358,7 @@ impl Ppu {
             let pixel_data = self.pixel_fifo_pop();
 
             if self.pfc.line_x >= self.lcd.scroll_x % 8 {
-                let index = self.pfc.pushed_x as usize
-                    + self.lcd.ly as usize * X_RES as usize;
+                let index = self.pfc.pushed_x as usize + self.lcd.ly as usize * X_RES as usize;
                 self.video_buffer[index] = pixel_data;
 
                 self.pfc.pushed_x += 1;
@@ -368,8 +373,7 @@ impl Ppu {
             let sprite_x = (elem.x - 8) + (self.lcd.scroll_x % 8);
 
             if (sprite_x >= self.pfc.fetch_x) && (sprite_x < (self.pfc.fetch_x + 8))
-                || ((sprite_x + 8) >= self.pfc.fetch_x)
-                    && ((sprite_x + 8) < (self.pfc.fetch_x + 8))
+                || ((sprite_x + 8) >= self.pfc.fetch_x) && ((sprite_x + 8) < (self.pfc.fetch_x + 8))
             {
                 let index = self.fetched_entry_count as usize;
                 self.fetched_entry_count += 1;
@@ -416,8 +420,7 @@ impl Ppu {
                     self.pfc.bgw_fetch_data[0] = bus.read(address);
 
                     if self.lcd.bgw_data_area() == 0x8800 {
-                        self.pfc.bgw_fetch_data[0] =
-                            self.pfc.bgw_fetch_data[0].wrapping_add(128);
+                        self.pfc.bgw_fetch_data[0] = self.pfc.bgw_fetch_data[0].wrapping_add(128);
                     }
 
                     self.pipeline_load_window_tile(bus);
@@ -467,14 +470,11 @@ impl Ppu {
             return false;
         }
 
-        let x = (self
-            .pfc
-            .fetch_x
-            .wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
+        let x = (self.pfc.fetch_x.wrapping_sub(8 - (self.lcd.scroll_x % 8))) as i32;
 
-        for bit in (0..8).rev() {
+        for bit in (0u8..8).rev() {
             let lo: u8 = ((self.pfc.bgw_fetch_data[1] & (1 << bit)) != 0) as u8;
-            let hi: u8 = (((self.pfc.bgw_fetch_data[2] & (1 << bit)) != 0) as u8) << 1;
+            let hi: u8 = (((self.pfc.bgw_fetch_data[2] & (1 << bit)) << 1) != 0) as u8;
 
             let mut color: Color = self.lcd.bg_colors[(hi | lo) as usize];
 
@@ -516,7 +516,7 @@ impl Ppu {
     }
 
     fn pipeline_load_window_tile(&mut self, bus: &mut Bus) {
-        if !self.lcd.window_visible() {
+        if !self.lcd.is_window_visible() {
             return;
         }
 
