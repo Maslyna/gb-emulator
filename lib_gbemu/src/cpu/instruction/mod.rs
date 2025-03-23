@@ -1676,7 +1676,6 @@ impl Instruction {
             inst[0xEA] = Instruction {
                 in_type: IT::Ld,
                 mode: AM::A16Reg,
-                r1: RT::None,
                 r2: RT::A,
                 ..Instruction::default()
             };

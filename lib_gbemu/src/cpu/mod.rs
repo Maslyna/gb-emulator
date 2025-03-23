@@ -10,7 +10,7 @@ use crate::memory::Bus;
 
 use std::fmt::Write;
 
-const DEBUG: bool = true;
+const DEBUG: bool = false;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -78,7 +78,7 @@ impl Cpu {
                 )
                 .to_uppercase();
                 // print!("{}", debug_data);
-                common::debug_write(&debug_data);
+                common::debug_write(debug_data);
             }
 
             if bus.timer.ticks == 1764640 {
@@ -410,63 +410,62 @@ fn instruction_to_str(cpu: &Cpu, bus: &Bus) -> String {
     let fetched_data = cpu.fetched_data;
     let mut result = String::with_capacity(16);
 
-    write!(&mut result, "{:?}", cpu.cur_inst.in_type).unwrap();
+    let _ = write!(&mut result, "{:?}", cpu.cur_inst.in_type);
 
     match inst.mode {
         AM::Imp => {}
         AM::RegD16 | AM::RegA16 => {
-            write!(&mut result, " {:?}, ${:04X}", inst.r1, fetched_data).unwrap();
+            let _ = write!(&mut result, " {:?}, ${:04X}", inst.r1, fetched_data);
         }
         AM::Reg => {
-            write!(&mut result, " {:?}", inst.r1).unwrap();
+            let _ = write!(&mut result, " {:?}", inst.r1);
         }
         AM::RegReg => {
-            write!(&mut result, " {:?}, {:?}", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " {:?}, {:?}", inst.r1, inst.r2);
         }
         AM::MemReg => {
-            write!(&mut result, " ({:?}), {:?}", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " ({:?}), {:?}", inst.r1, inst.r2);
         }
         AM::RegMem => {
-            write!(&mut result, " {:?}, ({:?})", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " {:?}, ({:?})", inst.r1, inst.r2);
         }
         AM::RegD8 | AM::RegA8 => {
-            write!(&mut result, " {:?}, ${:02X}", inst.r1, fetched_data as u8).unwrap();
+            let _ = write!(&mut result, " {:?}, ${:02X}", inst.r1, fetched_data as u8);
         }
         AM::RegHLI => {
-            write!(&mut result, " {:?}, ({:?}+)", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " {:?}, ({:?}+)", inst.r1, inst.r2);
         }
         AM::RegHLD => {
-            write!(&mut result, " {:?}, ({:?}-)", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " {:?}, ({:?}-)", inst.r1, inst.r2);
         }
         AM::HLIReg => {
-            write!(&mut result, " ({:?}+), {:?}", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " ({:?}+), {:?}", inst.r1, inst.r2);
         }
         AM::HLDReg => {
-            write!(&mut result, " ({:?}-), {:?}", inst.r1, inst.r2).unwrap();
+            let _ = write!(&mut result, " ({:?}-), {:?}", inst.r1, inst.r2);
         }
         AM::A8Reg => {
-            write!(
+            let _ = write!(
                 &mut result,
                 " ${:02X}, {:?}",
                 bus.read(fetched_data),
                 inst.r2
-            )
-            .unwrap();
+            );
         }
         AM::HLRegSPReg => {
-            write!(&mut result, " ({:?}), SP+{:?}", inst.r1, fetched_data as u8).unwrap();
+            let _ = write!(&mut result, " ({:?}), SP+{:?}", inst.r1, fetched_data as u8);
         }
         AM::D8 => {
-            write!(&mut result, " ${:02X}", fetched_data as u8).unwrap();
+            let _ = write!(&mut result, " ${:02X}", fetched_data as u8);
         }
         AM::D16 => {
-            write!(&mut result, " ${:04X}", fetched_data).unwrap();
+            let _ = write!(&mut result, " ${:04X}", fetched_data);
         }
         AM::MemD8 => {
-            write!(&mut result, " ({:?}),${:02X}", inst.r1, fetched_data as u8).unwrap();
+            let _ = write!(&mut result, " ({:?}),${:02X}", inst.r1, fetched_data as u8);
         }
         AM::A16Reg => {
-            write!(&mut result, " (${:04X}), {:?}", fetched_data, inst.r2).unwrap();
+            let _ = write!(&mut result, " (${:04X}), {:?}", fetched_data, inst.r2);
         }
         _ => {
             result.push_str("INVALID MODE");

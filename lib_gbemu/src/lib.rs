@@ -9,4 +9,4 @@ pub mod io;
 pub mod memory;
 pub mod debug;
 pub mod gpu;
-mod common;
+pub mod common;

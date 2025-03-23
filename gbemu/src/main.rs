@@ -103,6 +103,8 @@ fn main() {
     let path: String = args.last().expect("<PATH> - path to the file");
     println!("PATH: {}", path);
 
+    lib_gbemu::common::init_logger();
+    
     std::thread::Builder::new()
         .stack_size(1024 * 1024 * 8)
         .name("SDL Thread".to_string())

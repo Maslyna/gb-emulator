@@ -155,7 +155,7 @@ impl<'a> Bus<'a> {
                 0xFF02 => self.serial_data[1] = value,
                 0xFF04..=0xFF07 => self.timer.write(address, value),
                 0xFF40..=0xFF4B => {
-                    if (address - 0xFF40) == 0xFF46 {
+                    if address == 0xFF46 {
                         self.dma.start(value);
                     }
                     self.ppu.lcd.write(address, value);

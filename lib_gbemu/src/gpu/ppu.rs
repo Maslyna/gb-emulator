@@ -97,25 +97,41 @@ impl Ppu {
 
     pub fn tick(&mut self, bus: &mut Bus) {
         if DEBUG {
+            macro_rules! vecdeque_to_hex_string {
+                ($vec:expr) => {
+                    format!(
+                        "[{}]",
+                        $vec.iter()
+                            .map(|v| format!("0x{:X}", v))
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    )
+                };
+            }
             let debug_ppu_output = format!(
-                "PPU: FRAME {} FCOUNT {} LINET {} ",
-                self.current_frame, self.frame_count, self.line_ticks
+                "{:08} - PPU: FRAME {} FCOUNT {} LINET {} ",
+                bus.timer.ticks, self.current_frame, self.frame_count, self.line_ticks
             );
             let debug_lcd_output: String = format!(
                 "LCD: LCDC {} LCDS {} LY {} LYCMP {} DMA {}",
                 self.lcd.lcdc, self.lcd.lcds, self.lcd.ly, self.lcd.ly_compare, self.lcd.dma
             );
             let debug_pixelcontext_output: String = format!(
-                "PFC: STATE {:?} PI_LEN {}",
+                "PFC: STATE {:?} PI_LEN {}\n{}",
                 self.pfc.current_fetch_state,
-                self.pfc.fifo.len()
+                self.pfc.fifo.len(),
+                vecdeque_to_hex_string!(self.pfc.fifo)
             );
 
             let debug_output =
                 format!("{debug_ppu_output}\n{debug_lcd_output}\n{debug_pixelcontext_output}\n");
-            print!("{debug_output}");
-            crate::common::debug_write(&debug_output);
+            // print!("{debug_output}");
+            crate::common::debug_write(debug_output);
         }
+        if bus.timer.ticks == 859831 {
+            println!("Break");
+        }
+
         self.line_ticks += 1;
 
         match self.lcd.get_lcds_mode() {
@@ -137,10 +153,10 @@ impl Ppu {
         }
 
         if end - self.start_time >= 1000 {
-            // let fps = self.frame_count;
+            let fps = self.frame_count;
             self.start_time = end;
             self.frame_count = 0;
-            // println!("FPS: {}", fps);
+            println!("FPS: {}", fps);
         }
 
         bus.screen.update(&self.video_buffer);

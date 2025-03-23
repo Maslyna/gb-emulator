@@ -1,26 +1,25 @@
-use super::{LcdMode, StatInterruptSource};
+use super::{Color, LcdMode, StatInterruptSource};
 
-const PALLETTE_COLORS: [u32; 4] = super::DEFAULT_COLORS;
+const PALLETTE_COLORS: [Color; 4] = super::DEFAULT_COLORS;
 
-#[allow(dead_code)]
 #[derive(Debug)]
 #[repr(C)]
 pub struct Lcd {
-    pub lcdc: u8,
-    pub lcds: u8,
-    pub scroll_y: u8,
-    pub scroll_x: u8,
-    pub ly: u8,
-    pub ly_compare: u8,
-    pub dma: u8,
-    pub bg_palette: u8,
-    pub obj_palette: [u8; 2],
-    pub win_x: u8,
-    pub win_y: u8,
+    pub lcdc: u8,             // FF40
+    pub lcds: u8,             // FF41
+    pub scroll_y: u8,         // FF42
+    pub scroll_x: u8,         // FF43
+    pub ly: u8,               // FF44
+    pub ly_compare: u8,       // FF45
+    pub dma: u8,              // FF46
+    pub bg_palette: u8,       // FF47
+    pub obj_palette: [u8; 2], // FF48 FF49
+    pub win_x: u8,            // FF4A
+    pub win_y: u8,            // FF4B
 
-    pub bg_colors: [u32; 4],
-    pub sp1_colors: [u32; 4],
-    pub sp2_colors: [u32; 4],
+    pub bg_colors: [Color; 4],
+    pub sp1_colors: [Color; 4],
+    pub sp2_colors: [Color; 4],
 }
 
 #[repr(u8)]
@@ -53,7 +52,7 @@ impl Lcd {
     }
 
     pub fn read(&self, address: u16) -> u8 {
-        let offset = address.wrapping_sub(0xFF40);
+        let offset = address - 0xFF40;
 
         unsafe {
             let ptr = self as *const _ as *const u8;
@@ -72,8 +71,8 @@ impl Lcd {
 
         match address {
             0xFF47 => self.set_pallete(value, Pallete::BgColors),
-            0xFF48 => self.set_pallete(value & 0b11111100, Pallete::Sp1),
-            0xFF49 => self.set_pallete(value & 0b11111100, Pallete::Sp2),
+            0xFF48 => self.set_pallete(value & 0b1111_1100, Pallete::Sp1),
+            0xFF49 => self.set_pallete(value & 0b1111_1100, Pallete::Sp2),
             _ => (),
         }
     }
@@ -157,16 +156,16 @@ impl Lcd {
     }
 
     fn set_pallete(&mut self, data: u8, palette: Pallete) {
-        match palette {
-            Pallete::Sp1 => self.bg_colors = self.sp1_colors,
-            Pallete::Sp2 => self.bg_colors = self.sp2_colors,
-            Pallete::BgColors => (),
+        self.bg_colors = match palette {
+            Pallete::Sp1 => self.sp1_colors,
+            Pallete::Sp2 => self.sp2_colors,
+            Pallete::BgColors => self.bg_colors,
         };
 
-        self.bg_colors[0] = PALLETTE_COLORS[(data & 0b0000_0011) as usize];
-        self.bg_colors[1] = PALLETTE_COLORS[((data >> 2) & 0b0000_0011) as usize];
-        self.bg_colors[2] = PALLETTE_COLORS[((data >> 4) & 0b0000_0011) as usize];
-        self.bg_colors[3] = PALLETTE_COLORS[((data >> 6) & 0b0000_0011) as usize];
+        self.bg_colors[0] = PALLETTE_COLORS[(data & 0b11) as usize];
+        self.bg_colors[1] = PALLETTE_COLORS[((data >> 2) & 0b11) as usize];
+        self.bg_colors[2] = PALLETTE_COLORS[((data >> 4) & 0b11) as usize];
+        self.bg_colors[3] = PALLETTE_COLORS[((data >> 6) & 0b11) as usize];
     }
 }
 
