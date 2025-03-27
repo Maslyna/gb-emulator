@@ -18,22 +18,6 @@ pub const TILE_COLORS: [Color; 4] = [
     Color::RGB(0, 0, 0),
 ];
 
-pub struct MainWindow {
-    pub canvas: Canvas<Window>,
-    pub target_frame_time: u64,
-    pub prev_frame_time: u64,
-    pub start_time: u64,
-    pub frame_count: u64,
-}
-
-pub struct DebugWindow(pub Canvas<Window>);
-
-pub struct DebugMode {
-    pub main_window: MainWindow,
-    pub debug_window: DebugWindow,
-    pub is_updated: bool,
-}
-
 fn delay(milis: u64) {
     std::thread::sleep(std::time::Duration::from_millis(milis));
 }
@@ -45,7 +29,26 @@ fn get_ticks() -> u64 {
         .as_millis() as u64
 }
 
+
+pub struct MainWindow {
+    pub canvas: Canvas<Window>,
+    pub target_frame_time: u64,
+    pub prev_frame_time: u64,
+    pub start_time: u64,
+    pub frame_count: u64,
+}
+
 impl MainWindow {
+    #[inline(always)]
+    pub fn clear(&mut self) {
+        self.canvas.clear();
+    }
+
+    #[inline(always)]
+    pub fn set_draw_color(&mut self, color: Color) {
+        self.canvas.set_draw_color(color);
+    }
+
     pub fn new(canvas: Canvas<Window>) -> Self {
         Self {
             canvas,
@@ -96,16 +99,12 @@ impl GbWindow for MainWindow {
     }
 }
 
-impl MainWindow {
-    #[inline(always)]
-    pub fn clear(&mut self) {
-        self.canvas.clear();
-    }
+pub struct DebugWindow(pub Canvas<Window>);
 
-    #[inline(always)]
-    pub fn set_draw_color(&mut self, color: Color) {
-        self.canvas.set_draw_color(color);
-    }
+pub struct DebugMode {
+    pub main_window: MainWindow,
+    pub debug_window: DebugWindow,
+    pub is_updated: bool,
 }
 
 impl DebugWindow {
