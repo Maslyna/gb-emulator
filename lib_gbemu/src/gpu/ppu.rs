@@ -1,10 +1,9 @@
-use super::{lcd::Lcd, LcdMode, StatInterruptSource, DEFAULT_COLORS};
-use crate::emu::Emu;
-use crate::memory::{interrupts::Interrupt, Bus};
-
+use crate::{
+    emu::Emu,
+    gpu::{lcd::Lcd, Color, LcdMode, StatInterruptSource, X_RES, Y_RES},
+    memory::{interrupts::Interrupt, Bus},
+};
 use std::collections::VecDeque;
-
-use super::{Color, X_RES, Y_RES};
 
 const LINES_PER_FRAME: u32 = 154;
 const TICKS_PER_LINE: u32 = 456;
@@ -60,12 +59,6 @@ pub struct Ppu {
     pub line_ticks: u32,
     pub video_buffer: [Color; FRAME_BUFFER_SIZE],
 
-    // TODO: into Screen trait
-    pub target_frame_time: u64,
-    pub prev_frame_time: u64,
-    pub start_time: u64,
-    pub frame_count: u64,
-
     pub lcd: Lcd,
 }
 
@@ -77,12 +70,7 @@ impl Ppu {
 
             current_frame: 0,
             line_ticks: 0,
-            video_buffer: [DEFAULT_COLORS[0]; (X_RES * Y_RES) as usize],
-
-            target_frame_time: 1000 / 60,
-            prev_frame_time: 0,
-            start_time: 0,
-            frame_count: 0,
+            video_buffer: [0; (X_RES * Y_RES) as usize],
 
             pfc: PixelFiFo::new(),
 
@@ -109,8 +97,8 @@ impl Ppu {
                 };
             }
             let debug_ppu_output = format!(
-                "{:08} - PPU: FRAME {} FCOUNT {} LINET {} ",
-                bus.timer.ticks, self.current_frame, self.frame_count, self.line_ticks
+                "{:08} - PPU: FRAME {} LINET {} ",
+                bus.timer.ticks, self.current_frame, self.line_ticks
             );
             let debug_lcd_output: String = format!(
                 "LCD: LCDC {} LCDS {} LY {} LYCMP {} DMA {}",
@@ -144,22 +132,7 @@ impl Ppu {
 
     // TODO: rewrite
     pub fn draw_frame(&mut self, bus: &mut Bus) {
-        // calc FPS
-        let end = Emu::get_ticks();
-        let frame_time = end - self.prev_frame_time;
-
-        if frame_time < self.target_frame_time {
-            Emu::delay(self.target_frame_time - frame_time);
-        }
-
-        if end - self.start_time >= 1000 {
-            let fps = self.frame_count;
-            self.start_time = end;
-            self.frame_count = 0;
-            println!("FPS: {}", fps);
-        }
-
-        bus.screen.update(&self.video_buffer);
+        bus.screen.draw_frame(&self.video_buffer);
         bus.screen.present();
     }
 
@@ -358,9 +331,6 @@ impl Ppu {
                 self.current_frame += 1;
 
                 self.draw_frame(bus);
-
-                self.frame_count += 1;
-                self.prev_frame_time = Emu::get_ticks();
             } else {
                 self.lcd.set_lcds_mode(LcdMode::Oam);
             }

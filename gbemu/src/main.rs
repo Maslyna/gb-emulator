@@ -67,7 +67,7 @@ fn ui_init() -> (MainWindow, DebugWindow, sdl2::EventPump) {
     let event_pump = sdl_context.event_pump().unwrap();
 
     (
-        MainWindow(window.into_canvas().build().unwrap()),
+        MainWindow::new(window.into_canvas().build().unwrap()),
         DebugWindow(debug_window.into_canvas().build().unwrap()),
         event_pump,
     )

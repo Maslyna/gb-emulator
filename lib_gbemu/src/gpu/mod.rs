@@ -23,6 +23,6 @@ pub enum StatInterruptSource {
 }
 
 pub trait GbWindow {
-    fn update(&mut self, buffer: &[Color]);
+    fn draw_frame(&mut self, buffer: &[Color]);
     fn present(&mut self);
 }

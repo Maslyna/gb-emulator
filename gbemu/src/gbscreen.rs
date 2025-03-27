@@ -18,7 +18,14 @@ pub const TILE_COLORS: [Color; 4] = [
     Color::RGB(0, 0, 0),
 ];
 
-pub struct MainWindow(pub Canvas<Window>);
+pub struct MainWindow {
+    pub canvas: Canvas<Window>,
+    pub target_frame_time: u64,
+    pub prev_frame_time: u64,
+    pub start_time: u64,
+    pub frame_count: u64,
+}
+
 pub struct DebugWindow(pub Canvas<Window>);
 
 pub struct DebugMode {
@@ -27,36 +34,77 @@ pub struct DebugMode {
     pub is_updated: bool,
 }
 
+fn delay(milis: u64) {
+    std::thread::sleep(std::time::Duration::from_millis(milis));
+}
+
+fn get_ticks() -> u64 {
+    let now = std::time::SystemTime::now();
+    now.duration_since(std::time::UNIX_EPOCH)
+        .expect("Failed to get current time in millis")
+        .as_millis() as u64
+}
+
+impl MainWindow {
+    pub fn new(canvas: Canvas<Window>) -> Self {
+        Self {
+            canvas,
+            target_frame_time: 0,
+            prev_frame_time: 0,
+            frame_count: 0,
+            start_time: 0,
+        }
+    }
+}
+
 impl GbWindow for MainWindow {
     #[inline(always)]
-    fn update(&mut self, buffer: &[GbColor]) {
+    fn draw_frame(&mut self, buffer: &[GbColor]) {
+        let end = get_ticks();
+        let frame_time = end - self.prev_frame_time;
+
+        if frame_time < self.target_frame_time {
+            delay(self.target_frame_time - frame_time);
+            println!("Delay");
+        }
+
+        if end - self.start_time >= 1000 {
+            let fps = self.frame_count;
+            self.start_time = end;
+            self.frame_count = 0;
+            println!("FPS: {}", fps);
+        }
+
         for line in 0..Y_RES {
             for x in 0..X_RES {
                 let index = (x + (line * X_RES)) as usize;
                 let rect = Rect::new(x * SCALE, line * SCALE, SCALE as u32, SCALE as u32);
                 let color = buffer[index].to_color();
 
-                self.0.set_draw_color(color);
-                self.0.fill_rect(rect).unwrap();
+                self.canvas.set_draw_color(color);
+                self.canvas.fill_rect(rect).unwrap();
             }
         }
+
+        self.frame_count += 1;
+        self.prev_frame_time = get_ticks();
     }
 
     #[inline(always)]
     fn present(&mut self) {
-        self.0.present();
+        self.canvas.present();
     }
 }
 
 impl MainWindow {
     #[inline(always)]
     pub fn clear(&mut self) {
-        self.0.clear();
+        self.canvas.clear();
     }
 
     #[inline(always)]
     pub fn set_draw_color(&mut self, color: Color) {
-        self.0.set_draw_color(color);
+        self.canvas.set_draw_color(color);
     }
 }
 
@@ -149,9 +197,9 @@ impl DebugWindow {
 
 impl GbWindow for DebugMode {
     #[inline(always)]
-    fn update(&mut self, buffer: &[GbColor]) {
+    fn draw_frame(&mut self, buffer: &[GbColor]) {
         self.is_updated = true;
-        self.main_window.update(buffer);
+        self.main_window.draw_frame(buffer);
     }
 
     #[inline(always)]
