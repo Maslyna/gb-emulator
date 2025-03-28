@@ -3,6 +3,8 @@ use lib_gbemu::{
     memory::Bus,
 };
 
+use std::sync::{Arc, Mutex};
+
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
 
 use utils::ToColor;
@@ -29,9 +31,8 @@ fn get_ticks() -> u64 {
         .as_millis() as u64
 }
 
-
 pub struct MainWindow {
-    pub canvas: Canvas<Window>,
+    pub canvas: Arc<Mutex<Canvas<Window>>>,
     pub target_frame_time: u64,
     pub prev_frame_time: u64,
     pub start_time: u64,
@@ -39,24 +40,26 @@ pub struct MainWindow {
 }
 
 impl MainWindow {
-    #[inline(always)]
-    pub fn clear(&mut self) {
-        self.canvas.clear();
-    }
-
-    #[inline(always)]
-    pub fn set_draw_color(&mut self, color: Color) {
-        self.canvas.set_draw_color(color);
-    }
-
     pub fn new(canvas: Canvas<Window>) -> Self {
         Self {
-            canvas,
+            canvas: Arc::new(Mutex::new(canvas)),
             target_frame_time: 0,
             prev_frame_time: 0,
             frame_count: 0,
             start_time: 0,
         }
+    }
+
+    #[inline(always)]
+    pub fn clear(&mut self) {
+        let mut canvas = self.canvas.lock().unwrap();
+        canvas.clear();
+    }
+
+    #[inline(always)]
+    pub fn set_draw_color(&mut self, color: Color) {
+        let mut canvas = self.canvas.lock().unwrap();
+        canvas.set_draw_color(color);
     }
 }
 
@@ -67,27 +70,81 @@ impl GbWindow for MainWindow {
         let frame_time = end - self.prev_frame_time;
 
         if frame_time < self.target_frame_time {
-            delay(self.target_frame_time - frame_time);
-            println!("Delay");
+            std::thread::sleep(std::time::Duration::from_millis(
+                self.target_frame_time - frame_time,
+            ));
         }
 
         if end - self.start_time >= 1000 {
-            let fps = self.frame_count;
+            println!("FPS: {}", self.frame_count);
             self.start_time = end;
             self.frame_count = 0;
-            println!("FPS: {}", fps);
         }
 
-        for line in 0..Y_RES {
-            for x in 0..X_RES {
-                let index = (x + (line * X_RES)) as usize;
-                let rect = Rect::new(x * SCALE, line * SCALE, SCALE as u32, SCALE as u32);
-                let color = buffer[index].to_color();
+        let canvas = self.canvas.clone();
+        let mut guard = canvas.lock().unwrap();
+        let texture_creator = guard.texture_creator();
+        let mut texture = texture_creator
+            .create_texture_streaming(
+                sdl2::pixels::PixelFormatEnum::RGB24,
+                X_RES as u32,
+                Y_RES as u32,
+            )
+            .unwrap();
 
-                self.canvas.set_draw_color(color);
-                self.canvas.fill_rect(rect).unwrap();
-            }
+        // pixel buffer
+        let mut pixel_data = vec![0u8; (X_RES * Y_RES * 3) as usize];
+        let chunk_size = X_RES * 3;
+        let num_threads = 2;
+        let chunk_height = Y_RES / num_threads;
+
+        let handles: Vec<_> = (0..num_threads)
+            .map(|i| {
+                let start_y = i * chunk_height;
+                let end_y = if i == num_threads - 1 {
+                    Y_RES
+                } else {
+                    (i + 1) * chunk_height
+                };
+                let buffer = buffer.to_vec();
+
+                std::thread::spawn(move || {
+                    let mut local_pixel_data = vec![0u8; (X_RES * (end_y - start_y) * 3) as usize];
+                    for y in start_y..end_y {
+                        for x in 0..X_RES {
+                            let index = (x + y * X_RES) as usize;
+                            let color = buffer[index].to_color();
+                            let pixel_index = ((y - start_y) * X_RES * 3 + x * 3) as usize;
+                            local_pixel_data[pixel_index] = color.r;
+                            local_pixel_data[pixel_index + 1] = color.g;
+                            local_pixel_data[pixel_index + 2] = color.b;
+                        }
+                    }
+                    local_pixel_data
+                })
+            })
+            .collect();
+
+        // Result into cummon buffer
+        for (i, handle) in handles.into_iter().enumerate() {
+            let result = handle.join().unwrap();
+            let start_y = i * chunk_height as usize;
+            let end_y = if i == num_threads as usize - 1 {
+                Y_RES as usize
+            } else {
+                (i + 1) * chunk_height as usize
+            };
+            let pixel_index_start = start_y * X_RES as usize * 3;
+            let pixel_index_end = end_y * X_RES as usize * 3;
+            pixel_data[pixel_index_start..pixel_index_end].copy_from_slice(&result);
         }
+
+        // create texture
+        texture
+            .update(None, &pixel_data, chunk_size as usize)
+            .unwrap();
+        guard.copy(&texture, None, None).unwrap();
+        guard.present();
 
         self.frame_count += 1;
         self.prev_frame_time = get_ticks();
@@ -95,7 +152,8 @@ impl GbWindow for MainWindow {
 
     #[inline(always)]
     fn present(&mut self) {
-        self.canvas.present();
+        let mut canvas = self.canvas.lock().unwrap();
+        canvas.present();
     }
 }
 
