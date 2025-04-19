@@ -32,7 +32,7 @@ fn get_ticks() -> u64 {
 }
 
 pub struct MainWindow {
-    pub canvas: Arc<Mutex<Canvas<Window>>>,
+    pub canvas: Canvas<Window>,
     pub target_frame_time: u64,
     pub prev_frame_time: u64,
     pub start_time: u64,
@@ -42,7 +42,7 @@ pub struct MainWindow {
 impl MainWindow {
     pub fn new(canvas: Canvas<Window>) -> Self {
         Self {
-            canvas: Arc::new(Mutex::new(canvas)),
+            canvas,
             target_frame_time: 0,
             prev_frame_time: 0,
             frame_count: 0,
@@ -52,14 +52,12 @@ impl MainWindow {
 
     #[inline(always)]
     pub fn clear(&mut self) {
-        let mut canvas = self.canvas.lock().unwrap();
-        canvas.clear();
+        self.canvas.clear();
     }
 
     #[inline(always)]
     pub fn set_draw_color(&mut self, color: Color) {
-        let mut canvas = self.canvas.lock().unwrap();
-        canvas.set_draw_color(color);
+        self.canvas.set_draw_color(color);
     }
 }
 
@@ -81,9 +79,7 @@ impl GbWindow for MainWindow {
             self.frame_count = 0;
         }
 
-        let canvas = self.canvas.clone();
-        let mut guard = canvas.lock().unwrap();
-        let texture_creator = guard.texture_creator();
+        let texture_creator = self.canvas.texture_creator();
         let mut texture = texture_creator
             .create_texture_streaming(
                 sdl2::pixels::PixelFormatEnum::RGB24,
@@ -125,7 +121,7 @@ impl GbWindow for MainWindow {
             })
             .collect();
 
-        // Result into cummon buffer
+        // Result into common buffer
         for (i, handle) in handles.into_iter().enumerate() {
             let result = handle.join().unwrap();
             let start_y = i * chunk_height as usize;
@@ -143,8 +139,8 @@ impl GbWindow for MainWindow {
         texture
             .update(None, &pixel_data, chunk_size as usize)
             .unwrap();
-        guard.copy(&texture, None, None).unwrap();
-        guard.present();
+        self.canvas.copy(&texture, None, None).unwrap();
+        self.canvas.present();
 
         self.frame_count += 1;
         self.prev_frame_time = get_ticks();
@@ -152,8 +148,7 @@ impl GbWindow for MainWindow {
 
     #[inline(always)]
     fn present(&mut self) {
-        let mut canvas = self.canvas.lock().unwrap();
-        canvas.present();
+        self.canvas.present();
     }
 }
 
