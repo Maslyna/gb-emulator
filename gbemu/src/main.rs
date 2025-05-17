@@ -117,12 +117,9 @@ fn main() {
             debug_window.set_draw_color(Color::RGB(17, 17, 17));
             debug_window.clear();
             debug_window.present();
+            drop(debug_window);
 
-            let mut emulator_window = DebugMode {
-                main_window,
-                debug_window,
-                is_updated: false,
-            };
+            let mut emulator_window = main_window;
 
             let Emulator(mut cpu, mut bus) =
                 create_emu(path, make_mut_ref!(&mut emulator_window)).unwrap();
@@ -157,11 +154,11 @@ fn main() {
                 if !emu_step(&mut cpu, &mut bus, &mut serial) {
                     return;
                 };
-                if emulator_window.is_updated {
-                    emulator_window.debug_window.update(&bus);
-                    emulator_window.debug_window.present();
-                    emulator_window.is_updated = false;
-                }
+                // if emulator_window.is_updated {
+                //     emulator_window.debug_window.update(&bus);
+                //     emulator_window.debug_window.present();
+                //     emulator_window.is_updated = false;
+                // }
             }
         })
         .unwrap()

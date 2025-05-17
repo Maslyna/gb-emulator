@@ -3,7 +3,11 @@ use lib_gbemu::{
     memory::Bus,
 };
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    mpsc::{channel, Sender},
+    Arc, Mutex,
+};
 
 use sdl2::{pixels::Color, rect::Rect, render::Canvas, video::Window};
 
@@ -31,22 +35,74 @@ fn get_ticks() -> u64 {
         .as_millis() as u64
 }
 
+type SharedCounter = Arc<AtomicUsize>;
+
+struct FrameTask {
+    start_y: usize,
+    end_y: usize,
+    buffer: Arc<[GbColor]>,
+    pixel_data: Arc<Mutex<Vec<u8>>>,
+    done_counter: SharedCounter,
+}
+
 pub struct MainWindow {
     pub canvas: Canvas<Window>,
     pub target_frame_time: u64,
     pub prev_frame_time: u64,
     pub start_time: u64,
     pub frame_count: u64,
+    thread_senders: Vec<Sender<FrameTask>>,
 }
 
 impl MainWindow {
     pub fn new(canvas: Canvas<Window>) -> Self {
+        const NUM_THREADS: usize = 4;
+
+        let mut thread_senders = Vec::new();
+
+        for _ in 0..NUM_THREADS {
+            let (tx, rx) = channel::<FrameTask>();
+            thread_senders.push(tx);
+
+            std::thread::spawn(move || {
+                while let Ok(task) = rx.recv() {
+                    let FrameTask {
+                        start_y,
+                        end_y,
+                        buffer,
+                        pixel_data,
+                        done_counter,
+                    } = task;
+
+                    let mut local = vec![0u8; X_RES as usize * (end_y - start_y) * 3];
+                    for y in start_y..end_y {
+                        for x in 0..X_RES as usize {
+                            let index = x + y * X_RES as usize;
+                            let color = buffer[index].to_color();
+                            let pixel_index = (y - start_y) * X_RES as usize * 3 + x * 3;
+                            local[pixel_index] = color.r;
+                            local[pixel_index + 1] = color.g;
+                            local[pixel_index + 2] = color.b;
+                        }
+                    }
+
+                    {
+                        let mut pd = pixel_data.lock().unwrap();
+                        let offset = start_y * X_RES as usize * 3;
+                        pd[offset..offset + local.len()].copy_from_slice(&local);
+                    }
+
+                    done_counter.fetch_add(1, Ordering::SeqCst);
+                }
+            });
+        }
         Self {
             canvas,
             target_frame_time: 0,
             prev_frame_time: 0,
             frame_count: 0,
             start_time: 0,
+            thread_senders,
         }
     }
 
@@ -88,56 +144,37 @@ impl GbWindow for MainWindow {
             )
             .unwrap();
 
-        // pixel buffer
-        let mut pixel_data = vec![0u8; (X_RES * Y_RES * 3) as usize];
-        let chunk_size = X_RES * 3;
-        let num_threads = 2;
-        let chunk_height = Y_RES / num_threads;
+        let shared_pixel_data = Arc::new(Mutex::new(vec![0u8; (X_RES * Y_RES * 3) as usize]));
+        let shared_buffer: Arc<[GbColor]> = Arc::from(buffer.to_vec().into_boxed_slice());
+        let done_counter = Arc::new(AtomicUsize::new(0));
+        let num_threads = self.thread_senders.len();
+        let chunk_height = Y_RES as usize / num_threads;
 
-        let handles: Vec<_> = (0..num_threads)
-            .map(|i| {
-                let start_y = i * chunk_height;
-                let end_y = if i == num_threads - 1 {
-                    Y_RES
-                } else {
-                    (i + 1) * chunk_height
-                };
-                let buffer = buffer.to_vec();
-
-                std::thread::spawn(move || {
-                    let mut local_pixel_data = vec![0u8; (X_RES * (end_y - start_y) * 3) as usize];
-                    for y in start_y..end_y {
-                        for x in 0..X_RES {
-                            let index = (x + y * X_RES) as usize;
-                            let color = buffer[index].to_color();
-                            let pixel_index = ((y - start_y) * X_RES * 3 + x * 3) as usize;
-                            local_pixel_data[pixel_index] = color.r;
-                            local_pixel_data[pixel_index + 1] = color.g;
-                            local_pixel_data[pixel_index + 2] = color.b;
-                        }
-                    }
-                    local_pixel_data
-                })
-            })
-            .collect();
-
-        // Result into common buffer
-        for (i, handle) in handles.into_iter().enumerate() {
-            let result = handle.join().unwrap();
-            let start_y = i * chunk_height as usize;
-            let end_y = if i == num_threads as usize - 1 {
+        for (i, tx) in self.thread_senders.iter().enumerate() {
+            let start_y = i * chunk_height;
+            let end_y = if i == num_threads - 1 {
                 Y_RES as usize
             } else {
-                (i + 1) * chunk_height as usize
+                (i + 1) * chunk_height
             };
-            let pixel_index_start = start_y * X_RES as usize * 3;
-            let pixel_index_end = end_y * X_RES as usize * 3;
-            pixel_data[pixel_index_start..pixel_index_end].copy_from_slice(&result);
+
+            tx.send(FrameTask {
+                start_y,
+                end_y,
+                buffer: shared_buffer.clone(),
+                pixel_data: shared_pixel_data.clone(),
+                done_counter: done_counter.clone(),
+            })
+            .unwrap();
         }
 
-        // create texture
+        while done_counter.load(Ordering::SeqCst) < num_threads {
+            std::thread::yield_now();
+        }
+
+        let pixel_data = shared_pixel_data.lock().unwrap();
         texture
-            .update(None, &pixel_data, chunk_size as usize)
+            .update(None, &pixel_data, (X_RES * 3) as usize)
             .unwrap();
         self.canvas.copy(&texture, None, None).unwrap();
         self.canvas.present();
