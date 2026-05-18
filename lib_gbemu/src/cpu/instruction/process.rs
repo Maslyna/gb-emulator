@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 use self::instruction::{AddressMode as AM, ConditionType as CT, InstructionType as IT};
 use self::regs::CpuFlag as Flag;
 use crate::cpu::*;

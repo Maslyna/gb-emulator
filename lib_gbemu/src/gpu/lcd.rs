@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 use super::{Color, LcdMode, StatInterruptSource};
 
 const PALLETTE_COLORS: [Color; 4] = super::DEFAULT_COLORS;

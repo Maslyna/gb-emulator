@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 //
 //  TODO: probably I should rewrite here everything
 //

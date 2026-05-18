@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 #[derive(Debug, Default)]
 pub struct Registers {
     pub a: u8,

@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 #[macro_export]
 macro_rules! bit {
     ($a:expr, $n:expr) => {

@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 pub const LOCATION_ENTRY_START: usize = 0x100;
 pub const LOCATION_ENTRY_END: usize = 0x103;
 pub const LOCATION_LOGO_START: usize = 0x104;

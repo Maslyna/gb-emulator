@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 use lib_gbemu::{
     gpu::{Color as GbColor, GbWindow, X_RES, Y_RES},
     memory::Bus,

@@ -1,3 +1,6 @@
+// Copyright 2026 Maslyna AKA Mykhailo Ordyntsev
+// SPDX-License-Identifier: gpl-3.0-only
+
 #[derive(Default, Debug, Clone, Copy)]
 pub struct GamepadState {
     pub start: bool,
